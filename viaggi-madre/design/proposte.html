@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tre grafiche per le webapp dei viaggi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;800&family=Big+Shoulders+Display:wght@700;900&family=IBM+Plex+Mono:wght@400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400;1,9..144,600&family=Instrument+Sans:wght@400;500;700&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Pagina di confronto: fondo neutro freddo, tre telefoni affiancati, ognuno con il suo mondo visivo. */
+  --bg:#DFE1E0; --ink:#17191A; --mute:#5C6264; --rule:#B9BDBC; --chip:#17191A;
+  --ui:"Instrument Sans",system-ui,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--ui);padding:28px 16px 60px}
+.top{max-width:1180px;margin:0 auto 26px}
+.top h1{font:600 30px/1.1 "Fraunces",Georgia,serif;margin:0 0 8px;text-wrap:balance}
+.top p{margin:0;color:var(--mute);max-width:68ch}
+.wall{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:34px 26px;justify-items:center}
+.opt{width:100%;max-width:372px;display:flex;flex-direction:column;gap:12px}
+.opt .lab{display:flex;align-items:baseline;gap:10px}
+.opt .lab b{background:var(--chip);color:#fff;font-weight:700;padding:2px 10px;border-radius:3px;font-size:13px;letter-spacing:.06em}
+.opt .lab span{font-weight:700;font-size:17px}
+.opt p{margin:0;color:var(--mute);font-size:13.5px}
+.phone{width:100%;height:740px;border-radius:38px;border:9px solid #101112;overflow:hidden;position:relative;box-shadow:0 30px 50px -28px rgba(0,0,0,.55)}
+.scr{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none}
+.scr::-webkit-scrollbar{display:none}
+.nav{position:absolute;left:0;right:0;bottom:0;display:flex}
+.nav span{flex:1;text-align:center}
+
+/* ============ A · MANIFESTO ============ */
+.A{--teal:#0E4B5A;--red:#E2512B;--sun:#F3B32F;--cream:#F4E8CF;--blk:#161616;background:var(--cream);color:var(--blk);font-family:"Archivo",sans-serif}
+.A .cover{background:var(--teal);position:relative;height:318px;overflow:hidden;border-bottom:5px solid var(--blk)}
+.A .cover svg{position:absolute;inset:0;width:100%;height:100%}
+.A .cover h2{position:absolute;left:16px;bottom:8px;margin:0;font:400 92px/.82 "Anton",Impact,sans-serif;color:var(--cream);letter-spacing:.01em;text-transform:uppercase}
+.A .cover .yr{position:absolute;right:14px;top:14px;font:400 30px/1 "Anton",sans-serif;color:var(--blk);background:var(--sun);padding:6px 10px 4px;border:4px solid var(--blk);transform:rotate(4deg)}
+.A .band{display:flex;border-bottom:5px solid var(--blk)}
+.A .band div{flex:1;padding:9px 12px;font-weight:800;font-size:11px;letter-spacing:.12em;text-transform:uppercase;border-right:5px solid var(--blk)}
+.A .band div:last-child{border:0;background:var(--red);color:var(--cream)}
+.A .band b{display:block;font:400 26px/1 "Anton",sans-serif;letter-spacing:.02em}
+.A .day{display:flex;align-items:stretch;border-bottom:5px solid var(--blk);background:var(--sun)}
+.A .day .n{font:400 76px/.9 "Anton",sans-serif;padding:8px 12px 2px;border-right:5px solid var(--blk);background:var(--red);color:var(--cream)}
+.A .day .t{padding:10px 12px;font-weight:800;font-size:12px;letter-spacing:.1em;text-transform:uppercase;align-self:center}
+.A .day .t b{display:block;font:400 25px/1 "Anton",sans-serif;letter-spacing:.02em;margin-top:3px}
+.A .st{display:grid;grid-template-columns:84px 1fr;border-bottom:3px solid var(--blk)}
+.A .st .h{font:400 25px/1 "Anton",sans-serif;padding:13px 0 0 13px}
+.A .st .b{padding:11px 12px 11px 0}
+.A .st .b b{display:block;font-weight:800;font-size:15.5px;line-height:1.2}
+.A .st .b i{font-style:normal;font-size:12.5px;color:#4A463C}
+.A .st.done{background:var(--teal);color:var(--cream)}
+.A .st.done .b i{color:#BFD6D3}
+.A .st.done .h:after{content:"FATTO";display:block;font:800 9px/1 "Archivo";letter-spacing:.14em;margin-top:5px;color:var(--sun)}
+.A .walk{font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;padding:5px 13px;background:var(--blk);color:var(--cream)}
+.A .nav{background:var(--blk);border-top:5px solid var(--blk)}
+.A .nav span{font:400 15px/1 "Anton",sans-serif;letter-spacing:.06em;color:var(--cream);padding:15px 0 13px;border-right:2px solid #3a3a3a}
+.A .nav span.on{background:var(--sun);color:var(--blk)}
+.A .pad{height:60px}
+
+/* ============ B · CARTA D'IMBARCO ============ */
+.B{--paper:#ECE4D2;--navy:#1D2942;--or:#EE6A1F;--red:#B8262B;--grn:#2B6B55;--line:#B9AE95;background:#CFC6B1;color:var(--navy);font-family:"IBM Plex Mono",ui-monospace,monospace}
+.B .pass{margin:14px 12px 0;background:var(--paper);border-radius:14px;position:relative;box-shadow:0 2px 0 rgba(0,0,0,.12)}
+.B .pass .strip{background:var(--or);color:#fff;border-radius:14px 14px 0 0;padding:7px 14px;display:flex;justify-content:space-between;font-size:10.5px;font-weight:700;letter-spacing:.14em}
+.B .route{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 2px}
+.B .route b{font:900 58px/.9 "Big Shoulders Display",sans-serif;letter-spacing:.01em}
+.B .route .pl{flex:1;height:2px;margin:0 10px;background:repeating-linear-gradient(90deg,var(--navy) 0 6px,transparent 6px 11px);position:relative}
+.B .route .pl:after{content:"✈";position:absolute;left:50%;top:-13px;transform:translateX(-50%);font-size:18px;background:var(--paper);padding:0 6px}
+.B .cities{display:flex;justify-content:space-between;padding:0 14px;font-size:10.5px;letter-spacing:.1em}
+.B .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px 8px;padding:14px}
+.B .grid span{display:block;font-size:9px;letter-spacing:.16em;color:#77705F}
+.B .grid b{font-size:14px;font-weight:700}
+.B .tear{border-top:2px dashed var(--line);margin:0 0;position:relative}
+.B .tear:before,.B .tear:after{content:"";position:absolute;top:-10px;width:20px;height:20px;border-radius:50%;background:#CFC6B1}
+.B .tear:before{left:-10px}.B .tear:after{right:-10px}
+.B .stubf{display:flex;align-items:center;gap:12px;padding:10px 14px 12px}
+.B .bar{flex:1;height:38px;background:repeating-linear-gradient(90deg,var(--navy) 0 2px,transparent 2px 4px,var(--navy) 4px 7px,transparent 7px 9px,var(--navy) 9px 10px,transparent 10px 14px)}
+.B .stubf b{font:900 30px/1 "Big Shoulders Display",sans-serif}
+.B .stubf small{display:block;font-size:9px;letter-spacing:.14em;color:#77705F}
+.B .dh{margin:18px 14px 8px;display:flex;justify-content:space-between;align-items:baseline;font-size:10.5px;letter-spacing:.16em;font-weight:700}
+.B .dh b{font:900 26px/1 "Big Shoulders Display",sans-serif;letter-spacing:.03em}
+.B .tk{margin:0 12px 8px;background:var(--paper);border-radius:10px;display:grid;grid-template-columns:70px 1fr;position:relative;box-shadow:0 1px 0 rgba(0,0,0,.1)}
+.B .tk .h{border-right:2px dashed var(--line);padding:11px 0 9px 12px;font-weight:700;font-size:15px}
+.B .tk .h small{display:block;font-size:9px;letter-spacing:.12em;color:#77705F;font-weight:400;margin-top:3px}
+.B .tk .b{padding:10px 12px}
+.B .tk .b b{display:block;font:700 15px/1.2 "Archivo",sans-serif}
+.B .tk .b i{font-style:normal;font-size:11px;color:#5E5848}
+.B .stamp{position:absolute;right:10px;top:50%;width:62px;height:62px;margin-top:-31px;border:2.5px solid var(--red);border-radius:50%;color:var(--red);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:9px;letter-spacing:.1em;line-height:1.25;transform:rotate(-14deg);opacity:.82;box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4.5px var(--red)}
+.B .stamp.g{border-color:var(--grn);color:var(--grn);transform:rotate(9deg);box-shadow:inset 0 0 0 3px var(--paper),inset 0 0 0 4.5px var(--grn)}
+.B .mv{margin:0 0 8px 26px;font-size:10.5px;color:#5E5848;letter-spacing:.06em}
+.B .nav{background:var(--navy);padding:8px 6px 10px;gap:5px}
+.B .nav span{font-size:9.5px;font-weight:700;letter-spacing:.12em;color:#B9C2D6;border:1.5px solid #46527068;border-radius:5px 5px 5px 14px;padding:9px 0 8px}
+.B .nav span.on{background:var(--or);color:#fff;border-color:var(--or)}
+.B .pad{height:70px}
+
+/* ============ C · RIVISTA ============ */
+.C{--w:#FAF9F6;--k:#0F0F10;--cob:#2440D8;--pk:#F2D5CC;--gr:#8A8A86;background:var(--w);color:var(--k);font-family:"Instrument Sans",sans-serif}
+.C .mast{display:flex;justify-content:space-between;padding:14px 16px 8px;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;border-bottom:1px solid var(--k)}
+.C .hero{position:relative;height:322px;overflow:hidden}
+.C .hero .blk{position:absolute;right:0;top:22px;width:62%;height:262px;background:var(--cob)}
+.C .hero svg{position:absolute;right:0;top:22px;width:62%;height:262px}
+.C .hero h2{position:absolute;left:14px;top:34px;margin:0;font:italic 600 104px/.8 "Fraunces",Georgia,serif;letter-spacing:-.04em;mix-blend-mode:multiply}
+.C .hero .yr{position:absolute;left:18px;top:206px;font:400 15px/1.3 "Fraunces",serif;max-width:118px}
+.C .hero .yr b{display:block;font:600 34px/1 "Fraunces",serif;letter-spacing:-.02em}
+.C .hero .note{position:absolute;right:16px;bottom:2px;font:700 21px/1 "Caveat",cursive;color:var(--cob);transform:rotate(-4deg)}
+.C .lede{padding:14px 16px 16px;font:400 17px/1.35 "Fraunces",serif;border-bottom:1px solid var(--k)}
+.C .lede:first-letter{float:left;font:600 54px/.8 "Fraunces",serif;padding:5px 7px 0 0;color:var(--cob)}
+.C .cols{display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid var(--k)}
+.C .cols div{padding:10px 0 10px 16px;border-right:1px solid var(--k);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--gr)}
+.C .cols div:last-child{border:0}
+.C .cols b{display:block;font:600 24px/1.1 "Fraunces",serif;color:var(--k);letter-spacing:-.02em;text-transform:none}
+.C .dh{padding:20px 16px 4px;display:flex;align-items:flex-end;gap:12px}
+.C .dh b{font:italic 600 74px/.75 "Fraunces",serif;letter-spacing:-.04em;color:var(--cob)}
+.C .dh span{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;padding-bottom:4px}
+.C .dh em{display:block;font:italic 400 20px/1.1 "Fraunces",serif;letter-spacing:0;text-transform:none;margin-top:3px}
+.C .tl{margin:10px 16px 0 44px;border-left:1px solid var(--k);padding:2px 0 0 18px;position:relative}
+.C .ev{position:relative;padding:0 0 18px}
+.C .ev:before{content:"";position:absolute;left:-23px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--w);border:1px solid var(--k)}
+.C .ev.done:before{background:var(--k)}
+.C .ev .h{position:absolute;left:-62px;top:1px;font-size:10.5px;font-weight:700;font-variant-numeric:tabular-nums;width:34px;text-align:right}
+.C .ev b{display:block;font:600 19px/1.15 "Fraunces",serif;letter-spacing:-.01em}
+.C .ev i{font-style:normal;font-size:12.5px;color:#55554F;display:block;margin-top:2px}
+.C .ev.done b{text-decoration:line-through;text-decoration-thickness:1px;color:var(--gr)}
+.C .ev .hand{font:700 19px/1.05 "Caveat",cursive;color:var(--cob);display:block;margin-top:5px;transform:rotate(-1.5deg);transform-origin:left}
+.C .ev .pic{margin-top:8px;height:92px;background:linear-gradient(135deg,var(--pk) 0 52%,var(--cob) 52% 100%);position:relative}
+.C .ev .pic:after{content:"foto del gruppo";position:absolute;left:8px;bottom:6px;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase}
+.C .nav{background:var(--w);border-top:1px solid var(--k)}
+.C .nav span{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;padding:15px 0 14px;color:var(--gr)}
+.C .nav span.on{color:var(--k);box-shadow:inset 0 3px 0 var(--cob)}
+.C .pad{height:58px}
+.foot{max-width:1180px;margin:30px auto 0;color:var(--mute);font-size:13px;border-top:1px solid var(--rule);padding-top:14px}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>Tre grafiche per le webapp dei viaggi</h1>
+  <p>La stessa schermata, il programma del primo giorno, in tre direzioni diverse. I contenuti su Praga sono di esempio. Ogni telefono scorre. Rispondi con la lettera: la porto su tutte le sezioni della figlia.</p>
+</div>
+<div class="wall">
+
+<!-- A -->
+<div class="opt">
+  <div class="lab"><b>A</b><span>Manifesto</span></div>
+  <p>Il viaggio come un manifesto turistico degli anni Trenta: campiture piatte, caratteri alti, bordi neri. La copertina la disegna Gemini per ogni destinazione.</p>
+  <div class="phone A"><div class="scr">
+    <div class="cover">
+      <svg viewBox="0 0 360 318" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <circle cx="262" cy="96" r="62" fill="#F3B32F"/>
+        <g fill="#E2512B"><rect x="0" y="150" width="360" height="12"/><rect x="0" y="174" width="360" height="7"/></g>
+        <g fill="#161616">
+          <polygon points="40,150 40,96 52,70 64,96 64,150"/><polygon points="78,150 78,84 86,58 90,34 94,58 102,84 102,150"/>
+          <polygon points="116,150 116,104 130,82 144,104 144,150"/><rect x="24" y="128" width="150" height="24"/>
+          <polygon points="186,150 186,118 196,104 206,118 206,150"/>
+        </g>
+        <g fill="#F4E8CF"><rect x="0" y="196" width="360" height="26"/></g>
+        <g fill="#161616"><path d="M0 196h360v10H0z"/>
+          <path d="M20 222a26 26 0 0 1 52 0zM100 222a26 26 0 0 1 52 0zM180 222a26 26 0 0 1 52 0zM260 222a26 26 0 0 1 52 0z" fill="#0E4B5A"/></g>
+        <g fill="#0A3A46"><rect x="0" y="222" width="360" height="96"/></g>
+        <g fill="#F3B32F" opacity=".5"><rect x="30" y="238" width="90" height="4"/><rect x="190" y="252" width="120" height="4"/><rect x="80" y="266" width="60" height="4"/></g>
+      </svg>
+      <div class="yr">2026</div>
+      <h2>Praga</h2>
+    </div>
+    <div class="band"><div>Mancano<b>21 giorni</b></div><div>In viaggio<b>Anna Bruno Carla</b></div><div>Sabato<b>−2°</b></div></div>
+    <div class="day"><div class="n">5</div><div class="t">Sabato · dicembre<b>Il ponte, la piazza, la birra</b></div></div>
+    <div class="st done"><div class="h">07:15</div><div class="b"><b>Volo Firenze → Praga</b><i>diretto, 1h45 · terminal 2</i></div></div>
+    <div class="st done"><div class="h">10:40</div><div class="b"><b>Bagagli in hotel, Malá Strana</b><i>autobus 119 e metro A</i></div></div>
+    <div class="walk">A piedi 8 min · 600 m</div>
+    <div class="st"><div class="h">11:30</div><div class="b"><b>Ponte Carlo</b><i>trenta statue, gratis · meglio prima di pranzo</i></div></div>
+    <div class="walk">A piedi 12 min · 900 m</div>
+    <div class="st"><div class="h">13:00</div><div class="b"><b>Pranzo da Lokál Dlouhááá</b><i>circa 18 € a testa · prenotato</i></div></div>
+    <div class="st"><div class="h">15:00</div><div class="b"><b>Orologio astronomico</b><i>le figure si muovono allo scoccare dell'ora</i></div></div>
+    <div class="st"><div class="h">17:30</div><div class="b"><b>Mercatino di Natale</b><i>piazza della Città Vecchia · svařák 4 €</i></div></div>
+    <div class="pad"></div>
+  </div><div class="nav"><span>Gruppo</span><span>Meta</span><span class="on">Viaggio</span><span>Conti</span><span>Foto</span></div></div>
+</div>
+
+<!-- B -->
+<div class="opt">
+  <div class="lab"><b>B</b><span>Carta d'imbarco</span></div>
+  <p>L'app è fatta di documenti di viaggio: la copertina è la carta d'imbarco del gruppo, ogni tappa è un biglietto, le tappe fatte prendono il timbro come su un passaporto.</p>
+  <div class="phone B"><div class="scr">
+    <div class="pass">
+      <div class="strip"><span>I NOSTRI VIAGGI INSIEME</span><span>N. 003</span></div>
+      <div class="route"><b>FLR</b><div class="pl"></div><b>PRG</b></div>
+      <div class="cities"><span>FIRENZE</span><span>PRAGA</span></div>
+      <div class="grid">
+        <div><span>PASSEGGERI</span><b>3</b></div><div><span>ANDATA</span><b>05 DIC</b></div><div><span>RITORNO</span><b>08 DIC</b></div>
+        <div><span>IMBARCO</span><b>06:35</b></div><div><span>VOLO</span><b>07:15</b></div><div><span>METEO</span><b>−2° NEVE</b></div>
+      </div>
+      <div class="tear"></div>
+      <div class="stubf"><div class="bar"></div><div><small>MANCANO</small><b>21 GG</b></div></div>
+    </div>
+    <div class="dh"><b>SAB 05 DIC</b><span>GIORNO 1 DI 4</span></div>
+    <div class="tk"><div class="h">07:15<small>1H45</small></div><div class="b"><b>Volo Firenze → Praga</b><i>diretto · terminal 2</i></div><div class="stamp">FATTO<br>05 DIC<br>PRG</div></div>
+    <div class="tk"><div class="h">10:40<small>20 MIN</small></div><div class="b"><b>Bagagli in hotel</b><i>Malá Strana</i></div><div class="stamp g">FATTO<br>05 DIC<br>HOTEL</div></div>
+    <div class="mv">↓ a piedi 8 min · 600 m</div>
+    <div class="tk"><div class="h">11:30<small>45 MIN</small></div><div class="b"><b>Ponte Carlo</b><i>gratis · trenta statue</i></div></div>
+    <div class="mv">↓ a piedi 12 min · 900 m</div>
+    <div class="tk"><div class="h">13:00<small>70 MIN</small></div><div class="b"><b>Lokál Dlouhááá</b><i>pranzo · 18 € · prenotato</i></div></div>
+    <div class="tk"><div class="h">15:00<small>60 MIN</small></div><div class="b"><b>Orologio astronomico</b><i>Città Vecchia</i></div></div>
+    <div class="tk"><div class="h">17:30<small>90 MIN</small></div><div class="b"><b>Mercatino di Natale</b><i>svařák 4 €</i></div></div>
+    <div class="pad"></div>
+  </div><div class="nav"><span>GRUPPO</span><span>META</span><span class="on">VIAGGIO</span><span>CONTI</span><span>FOTO</span></div></div>
+</div>
+
+<!-- C -->
+<div class="opt">
+  <div class="lab"><b>C</b><span>Rivista</span></div>
+  <p>Ogni viaggio è il numero di una rivista: titoli in corsivo grandi che escono dalla pagina, filetti sottili, molto bianco, un solo colore. Le note a mano sono quelle del diario del gruppo.</p>
+  <div class="phone C"><div class="scr">
+    <div class="mast"><span>I nostri viaggi</span><span>Numero 03 · Inverno</span></div>
+    <div class="hero">
+      <div class="blk"></div>
+      <svg viewBox="0 0 220 262" preserveAspectRatio="none" aria-hidden="true">
+        <g fill="#F2D5CC"><circle cx="150" cy="70" r="34"/></g>
+        <g fill="#0F0F10"><polygon points="20,262 20,150 34,120 48,150 48,262"/><polygon points="62,262 62,128 72,96 77,60 82,96 92,128 92,262"/><polygon points="108,262 108,162 124,138 140,162 140,262"/><rect x="150" y="196" width="70" height="66"/></g>
+      </svg>
+      <h2>Praga</h2>
+      <div class="yr"><b>2026</b>dal 5 all'8 dicembre, in tre</div>
+      <div class="note">si parte tra 21 giorni!</div>
+    </div>
+    <div class="lede">Quattro giorni sotto zero tra il ponte, il castello e le birrerie con le volte. Si cammina molto, si mangia presto, si rientra tardi.</div>
+    <div class="cols"><div>A piedi<b>6,4 km</b></div><div>A testa<b>75 €</b></div><div>Meteo<b>−2°</b></div></div>
+    <div class="dh"><b>5</b><span>Sabato · giorno uno<em>Il ponte, la piazza, la birra</em></span></div>
+    <div class="tl">
+      <div class="ev done"><span class="h">07:15</span><b>Volo Firenze → Praga</b><i>diretto, 1h45</i></div>
+      <div class="ev done"><span class="h">10:40</span><b>Bagagli in hotel</b><i>Malá Strana, autobus 119 e metro A</i></div>
+      <div class="ev"><span class="h">11:30</span><b>Ponte Carlo</b><i>trenta statue, gratis, 8 minuti a piedi</i><span class="hand">toccare San Giovanni Nepomuceno: porta fortuna</span><div class="pic"></div></div>
+      <div class="ev"><span class="h">13:00</span><b>Pranzo da Lokál Dlouhááá</b><i>circa 18 € a testa, prenotato</i></div>
+      <div class="ev"><span class="h">15:00</span><b>Orologio astronomico</b><i>le figure si muovono allo scoccare dell'ora</i></div>
+      <div class="ev"><span class="h">17:30</span><b>Mercatino di Natale</b><i>piazza della Città Vecchia</i><span class="hand">Bruno offre il primo giro</span></div>
+    </div>
+    <div class="pad"></div>
+  </div><div class="nav"><span>Gruppo</span><span>Meta</span><span class="on">Viaggio</span><span>Conti</span><span>Foto</span></div></div>
+</div>
+
+</div>
+<div class="foot">Nelle app vere l'illustrazione di copertina è generata per ogni destinazione e i colori cambiano con lei. Qui le sagome sono disegnate a mano per dare l'idea.</div>
+</body>
+</html>
