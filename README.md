@@ -1,10 +1,16 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 1.2 (14 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 1.3 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
 Il modulo chiede destinazione, città di partenza, date, numero, nomi e foto dei partecipanti, mezzo di trasporto (volo, treno, automobile), orari già noti, alloggio, programma di massima, reference, ritmo e fascia di spesa. La generazione produce un'anteprima navigabile e uno zip. La pubblicazione parte solo dopo conferma. 
+
+## Prenotazioni caricate
+
+Nel modulo, sotto il mezzo di trasporto, si caricano i documenti delle prenotazioni già fatte: biglietti aerei e ferroviari, traghetti, noleggi, conferme d'albergo, in PDF o foto (fino a 8 file, 7,5 MB l'uno). Claude li legge prima di disegnare il viaggio ed estrae tratte, date, orari, sigle, compagnia, numero, codice di prenotazione, passeggeri, posti e alloggio. Questi dati diventano vincoli: le tappe di viaggio del primo e dell'ultimo giorno portano gli orari veri e il resto del programma si adatta. Se la prenotazione di andata è un volo o un treno e nel modulo era indicato un altro mezzo, vale la prenotazione. Le incongruenze che Claude rileva (date fuori dal periodo, passeggeri che non corrispondono) compaiono nel registro della generazione, prima dell'anteprima.
+
+Nella figlia, sezione Arrivo, ogni tratta è un biglietto con orari, codice e passeggeri, e i documenti originali si aprono anche offline. Stanno dentro il contenuto cifrato del viaggio, quindi li vedono solo i partecipanti. Limite: i documenti incorporati non superano circa 4,5 MB in totale; quelli oltre vengono letti ma non allegati. Senza chiave Claude i documenti vengono allegati ma non letti.
 
 ## Archivio di tutti i viaggi
 
@@ -76,7 +82,7 @@ Limiti da conoscere. L'icona dell'app, cioè il logo con le caricature, e le fot
 
 ## Collaudo
 
-`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (38 controlli). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
+`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (40 controlli). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
 
 ## Struttura
 

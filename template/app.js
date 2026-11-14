@@ -261,6 +261,7 @@ function renderMeta(){
 }
 
 /* ============ ARRIVO ============ */
+function openTripDoc(i){var d=(T.docs||[])[i];if(!d)return;try{var b=atob(d.data.split(",")[1]),u=new Uint8Array(b.length);for(var k=0;k<b.length;k++)u[k]=b.charCodeAt(k);var w=window.open(URL.createObjectURL(new Blob([u],{type:d.type})),"_blank");if(!w)toast("Il telefono ha bloccato la finestra: consenti i popup");}catch(e){toast("Documento non leggibile");}}
 function renderArrivo(){
   var X=T.transport||{}, ico={volo:"✈️",treno:"🚆",auto:"🚗"}[X.mode]||"🧭";
   var h='<div class="card soft"><div class="pill b" style="margin-bottom:8px">'+esc(X.modeLabel||X.mode||"")+'</div><h3>'+esc((T.origin&&T.origin.name)||"")+' → '+esc(T.dest.name)+'</h3><p style="font-size:14px;margin-top:8px">'+esc(X.summary||"")+'</p></div>';
@@ -269,6 +270,14 @@ function renderArrivo(){
   (X.links||[]).forEach(function(l,i){h+='<a class="btn '+(i?"sec ":"")+'full" style="margin-top:8px" href="'+safeUrl(l.u)+'" target="_blank" rel="noopener">'+esc(l.t)+'</a>';});
   if(X.linkNote)h+='<p class="muted small" style="margin:8px 0 0">'+esc(X.linkNote)+'</p>';
   h+='</div>';
+  if((X.bookings||[]).length){h+='<div class="tt">Prenotazioni</div>';
+    X.bookings.forEach(function(b,i){var d=(T.docs||[])[b.doc-1], dd=b.date?b.date.slice(8)+"/"+b.date.slice(5,7):"";
+      h+='<div class="tk"><div class="h">'+esc(b.dep||"")+'<small>'+esc(dd)+'</small><small style="margin-top:8px;color:var(--ink)">'+esc(b.arr||"")+'</small></div><div class="bd"><b>'+esc((b.fromCode||b.from)+" → "+(b.toCode||b.to))+'</b><div class="met">'+esc([b.from+" → "+b.to,[b.carrier,b.number].filter(Boolean).join(" "),b.seats].filter(Boolean).join(" · "))+'</div>'+
+        (b.pnr?'<div style="margin-top:7px">'+pill("Prenotazione "+esc(b.pnr),"b")+'</div>':'')+((b.passengers||[]).length?'<div class="met" style="margin-top:5px">'+esc(b.passengers.join(", "))+'</div>':'')+(b.notes?'<div style="font-size:13px;margin-top:6px">'+esc(b.notes)+'</div>':'')+
+        (d?'<button class="btn sec" style="padding:8px 10px;margin-top:9px" onclick="openTripDoc('+(b.doc-1)+')">Apri il documento</button>':'')+'</div></div>';});
+    h+='<p class="muted small">Dati letti da Claude dai documenti caricati: controllali una volta sul documento originale.</p>';}
+  var LB=X.lodgingBooking; if(LB&&LB.name)h+='<div class="tt">Alloggio prenotato</div><div class="card"><b>'+esc(LB.name)+'</b><div class="muted small">'+esc(LB.address||"")+'</div><div class="kv" style="margin-top:6px"><b>Check-in</b><span>'+esc(LB.checkin||"")+'</span></div><div class="kv"><b>Check-out</b><span>'+esc(LB.checkout||"")+'</span></div>'+(LB.pnr?'<div class="kv"><b>Prenotazione</b><span>'+esc(LB.pnr)+'</span></div>':'')+(LB.notes?'<div style="font-size:13px;margin-top:6px">'+esc(LB.notes)+'</div>':'')+'</div>';
+  if((T.docs||[]).length){h+='<div class="tt">Documenti di viaggio</div><div class="card">';T.docs.forEach(function(d,i){h+='<div class="wdoc"><div><span class="pill">'+(d.type==="application/pdf"?"PDF":"FOTO")+'</span></div><div class="bd"><b>'+esc(d.name)+'</b></div><button onclick="openTripDoc('+i+')">Apri</button></div>';});h+='<p class="muted small" style="margin:8px 0 0">Caricati da chi ha organizzato il viaggio, disponibili anche offline per tutti i partecipanti.</p></div>';}
   if((X.routes||[]).length){h+='<div class="tt">Le strade, da Google</div>';
     X.routes.forEach(function(r,i){h+='<div class="card"><div style="display:flex;gap:8px;align-items:center"><b style="flex:1">'+(i===0?"Consigliata: ":"")+esc(r.summary||("Percorso "+(i+1)))+'</b>'+pill(Math.round(r.km)+" km","b")+pill(dur(r.min),"y")+'</div>'+(r.toll?'<div class="muted small" style="margin-top:4px">Pedaggi stimati: '+esc(r.toll)+'</div>':'')+(r.note?'<div class="muted small" style="margin-top:4px">'+esc(r.note)+'</div>':'')+(r.url?'<a class="btn sec full" style="margin-top:8px" href="'+safeUrl(r.url)+'" target="_blank" rel="noopener">Apri in Google Maps</a>':'')+'</div>';});}
   if((X.options||[]).length){h+='<div class="tt">Le opzioni, in ordine di convenienza</div>';

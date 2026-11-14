@@ -14,7 +14,7 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) process
     let r = await fetch(B + '/api/config'); ok(r.status === 401, 'config senza PIN rifiutata');
     const H = { 'x-admin-pin': '1234', 'content-type': 'application/json' };
     const photo = 'data:image/jpeg;base64,' + (await sharp({ create: { width: 300, height: 300, channels: 3, background: '#c97' } }).jpeg().toBuffer()).toString('base64');
-    r = await fetch(B + '/api/trips', { method: 'POST', headers: H, body: JSON.stringify({ dest: 'Praga', origin: 'Firenze', start: '2026-12-05', end: '2026-12-08', mode: 'auto', people: [{ name: 'Anna', photo }, { name: 'Bruno' }, { name: 'Carla', photo }], program: 'Castello e birra', refs: [{ t: 'reel', u: 'https://example.com/x' }] }) });
+    r = await fetch(B + '/api/trips', { method: 'POST', headers: H, body: JSON.stringify({ dest: 'Praga', origin: 'Firenze', start: '2026-12-05', end: '2026-12-08', mode: 'auto', people: [{ name: 'Anna', photo }, { name: 'Bruno' }, { name: 'Carla', photo }], program: 'Castello e birra', bookings: [{ name: 'volo.jpg', data: photo }], refs: [{ t: 'reel', u: 'https://example.com/x' }] }) });
     const { id } = await r.json(); let j;
     for (let i = 0; i < 60; i++) { j = await (await fetch(B + '/api/jobs/' + id, { headers: H })).json(); if (j.status !== 'run') break; await sleep(500); }
     console.log(j.log.join(' | '));
@@ -24,6 +24,7 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) process
     const pub = await (await fetch(B + '/preview/' + id + '/auth.json')).json();
     ok(!JSON.stringify(pub).toLowerCase().includes('anna') && !JSON.stringify(pub).includes(j.creds[0].pass.replace('-', '')), 'auth.json non contiene nomi né password');
     const enc = Buffer.from(await (await fetch(B + '/preview/' + id + '/trip.enc')).arrayBuffer()); ok(!enc.toString('latin1').includes('Castello'), 'trip.enc cifrato');
+    const lg = j.log.join(' '); ok(/Prenotazioni lette: 1 tratta/.test(lg) && /Attenzione, prenotazioni/.test(lg), 'prenotazioni caricate: lette e segnalate nel registro');
     // sync
     const TOK = await token(id, j.creds[0]); const S = B + '/api/sync/' + j.slug, C = { 'content-type': 'application/json', 'x-trip-token': TOK };
     r = await fetch(S, { method: 'POST', headers: { 'content-type': 'application/json', 'x-trip-token': 'ab'.repeat(16) }, body: '{}' }); ok(r.status === 401, 'sync con gettone errato rifiutata');
@@ -42,6 +43,7 @@ const ok = (c, m) => { console.log((c ? 'OK   ' : 'FAIL ') + m); if (!c) process
     for (const t of ['s-meta', 's-arrivo', 's-viaggio', 's-conti', 's-foto', 's-altro']) { await A.click(`#nav button[data-t="${t}"]`); await sleep(250); }
     await A.click('#nav button[data-t="s-conti"]');
     ok((await A.textContent('#s-conti')).includes('Cena'), 'telefono A vede la spesa arrivata dal server');
+    await A.click('#nav button[data-t="s-arrivo"]'); const ar = await A.textContent('#s-arrivo'); ok(ar.includes('FLR → PRG') && ar.includes('PROVA1') && ar.includes('volo.jpg') && await A.evaluate(() => T.codes.join('-')) === 'FLR-PRG', 'prenotazione nella figlia: tratta, codice, documento, sigle in testata'); await A.screenshot({ path: '/tmp/shot-arrivo.png' }); await A.click('#nav button[data-t="s-conti"]');
     await A.fill('#expWhat', 'Taxi'); await A.fill('#expAmt', '30'); await A.click('#s-conti .btn.sec >> text=Bruno'); await sleep(3800);
     await Z.click('#nav button[data-t="s-conti"]'); await Z.evaluate(() => sync(true)); await sleep(1500);
     const zc = await Z.textContent('#s-conti');
