@@ -1,6 +1,6 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 1.9.2 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 2.0 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
@@ -39,6 +39,18 @@ Quando legge. Ogni 5 minuti finché la madre è sveglia, all'avvio e a ogni sinc
 Messaggi che non riguardano un viaggio (v1.9.2). Avvisi di sicurezza, pubblicità e notifiche vengono ignorati da soli: nel registro finiscono in un elenco chiuso, Ignorati, da cui si possono ripristinare. Un messaggio di viaggio rimasto senza viaggio mostra Assegna e Ignora. La lettura reale della casella è stata verificata il 15/11/2026 sul servizio pubblicato.
 
 Limiti. La lettura IMAP non è coperta dai test automatici (dall'ambiente di sviluppo Gmail non è raggiungibile): il percorso collaudato parte dal messaggio già scaricato. Chiunque conosca l'indirizzo può scrivere alla casella e far entrare un documento in un viaggio: ogni modifica resta visibile tra i documenti, con Annulla. I viaggi nati fuori dalla madre non ricevono posta.
+
+## Viaggi passati: siti ricordo, accesso famiglia, importazione in blocco (v2.0)
+
+Sito ricordo. Un viaggio già fatto nasce con `past`: Claude non pianifica, ricostruisce il viaggio dai documenti e dagli appunti conservati, segnando come ricostruite le tappe che non risultano dalle fonti. La figlia non mostra conto alla rovescia, cose da prenotare, link di acquisto, mete in più, meteo e avvisi; la linguetta Prenotazioni diventa Documenti; restano programma correggibile, mappa, documenti del gruppo, conti, album, diario e fotolibro.
+
+Accesso famiglia. Al posto di una password per persona e per sito, i siti importati hanno un solo utente, `famiglia`, con la password scelta dall'amministratore al momento dell'importazione (almeno 8 lettere o cifre, senza distinzione tra maiuscole e minuscole). La password non viene salvata da nessuna parte. Entrati, ognuno tocca il proprio nome per firmare foto e diario. Attenzione: il pulsante Credenziali dell'Archivio, usato su uno di questi siti, lo riporta alle password per persona.
+
+Importazione in blocco. In Archivio, Importa i viaggi passati: si carica un pacchetto `.json` (un elemento per cartella di viaggio, con i PDF e il testo estratto da fogli, presentazioni e note), si indicano i viaggiatori abituali e la password della famiglia. Per ogni viaggio Claude inquadra destinazione, date, mezzo e viaggiatori dai documenti, poi la madre genera e pubblica senza passare dall'anteprima. I viaggi già in archivio (stessa cartella) si saltano; quelli senza date ricavabili restano in elenco come non riusciti e si creano a mano; un viaggio con date future diventa un sito completo, non un ricordo. La pagina va lasciata aperta fino alla fine: due o tre minuti a viaggio.
+
+## Foto del NAS (v2.0)
+
+In Impostazioni si indica l'indirizzo di una cartella condivisa di un NAS Synology (link di condivisione di File Station, nella forma che compare nel browser: `https://…/sharing/CODICE`) e le cartelle delle foto, organizzate per anno e mese come i salvataggi automatici dei telefoni. In Archivio, Foto dal NAS su un viaggio: la madre elenca le foto la cui data cade nei giorni del viaggio, giornata per giornata con le anteprime; l'amministratore toglie le giornate che non c'entrano e porta le altre nell'album. Le foto entrano a 2000 pixel, 400 per volta, senza duplicati; i formati che la madre non apre (HEIC) passano dall'anteprima grande del NAS. L'abbinamento usa la data di modifica del file, che nei salvataggi dei telefoni coincide con lo scatto: non legge i dati EXIF. Indirizzo e cartelle stanno nell'archivio privato, non nel codice. Protocollo verificato dal browser sul NAS vero il 15/11/2026; il collegamento dalla madre è collaudato solo contro un NAS simulato.
 
 ## Altre mete (v1.7)
 
@@ -132,7 +144,7 @@ In Impostazioni, il pulsante Prova i collegamenti fa una chiamata minima a Claud
 
 ## Collaudo
 
-`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (67 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
+`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (82 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
 
 ## Struttura
 

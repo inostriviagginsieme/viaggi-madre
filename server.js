@@ -62,7 +62,7 @@ app.post('/api/trips', admin, express.json({ limit: '40mb' }), (req, res) => {
   })();
   res.json({ id });
 });
-const view = j => ({ id: j.id, status: j.status, log: j.log, error: j.error, slug: j.slug, creds: j.creds, title: j.trip && j.trip.title, days: j.trip && j.trip.days.length, stops: j.trip && Object.keys(j.trip.poi).length, url: j.url, repo: j.repo, dashboard: j.dashboard, warn: j.warn });
+const view = j => ({ id: j.id, status: j.status, log: j.log, error: j.error, slug: j.slug, creds: j.creds, skipped: j.skipped, title: j.trip ? j.trip.title : j.title, days: j.trip ? j.trip.days.length : j.nDays, stops: j.trip ? Object.keys(j.trip.poi).length : j.nStops, url: j.url, repo: j.repo, dashboard: j.dashboard, warn: j.warn });
 app.get('/api/jobs/:id', admin, (req, res) => { const j = jobs.get(req.params.id); if (!j) return res.status(404).json({ error: 'Lavoro non trovato (il server è stato riavviato): rigenera il viaggio.' }); res.json(view(j)); });
 app.get('/api/jobs/:id/zip', (req, res) => { const j = jobs.get(req.params.id); if (!j || !j.files) return res.status(404).send('Non trovato'); res.set({ 'content-type': 'application/zip', 'content-disposition': 'attachment; filename="' + j.slug + '.zip"' }).send(makeZip(j.files.map(f => ({ path: j.slug + '/' + f.path, data: f.data })))); });
 app.get('/preview/:id/*', (req, res) => {
@@ -71,30 +71,60 @@ app.get('/preview/:id/*', (req, res) => {
   if (!f) return res.status(404).send('Non trovato');
   res.set('content-type', MIME[path.extname(p)] || 'application/octet-stream').set('cache-control', 'no-store').send(Buffer.isBuffer(f.data) ? f.data : Buffer.from(f.data));
 });
+async function publishJob(j) {
+  const log = m => j.log.push(m);
+  try {
+    const t = j.trip, desc = `${t.title} · ${t.dateLabel} · ${t.people.map(p => p.name).join(', ')}`.slice(0, 340);
+    log('Creo il repository GitHub ' + gh.OWNER() + '/' + j.slug + '…');
+    const repo = await gh.createRepo(j.slug, desc); j.repo = repo.html_url;
+    await gh.commitFiles(j.slug, 'main', j.files, 'Webapp del viaggio ' + t.title);
+    await gh.ensureBranch(j.slug, 'data', 'main');
+    await sync.initTrip(j.slug, j.users);
+    if (rnd.hasRender()) {
+      log('Creo il sito su Render…');
+      try { const s = await rnd.createStaticSite(j.slug, repo.html_url); j.url = s.url; j.dashboard = s.dashboard; await gh.updateRepo(j.slug, { homepage: s.url }).catch(() => {}); log('Sito creato: il primo deploy richiede uno o due minuti.'); }
+      catch (e) { j.warn = 'Repository creato, sito Render non creato (' + e.message + '). Crealo da Render: New, Static Site, repository ' + j.slug + ', publish directory pwa. Verifica che Render abbia accesso al repository.'; log(j.warn); }
+    } else { j.warn = 'Repository creato. Manca RENDER_API_KEY: crea il sito da Render (New, Static Site, repository ' + j.slug + ', publish directory pwa).'; log(j.warn); }
+    try { await archive.saveTrip(j); log('Viaggio registrato nell\'archivio (' + gh.OWNER() + '/' + archive.REPO() + ').'); } catch (e) { j.warn = (j.warn ? j.warn + ' ' : '') + 'Archivio non aggiornato: ' + e.message; log(j.warn); }
+    j.published = true; j.status = 'done'; log('Fatto.');
+  } catch (e) { j.status = 'preview'; j.error = e.message; log('Pubblicazione non riuscita: ' + e.message); }
+}
 app.post('/api/jobs/:id/publish', admin, (req, res) => {
   const j = jobs.get(req.params.id);
   if (!j || !j.files) return res.status(404).json({ error: 'Anteprima scaduta: rigenera il viaggio.' });
   if (!gh.hasGitHub()) return res.status(400).json({ error: 'Manca la configurazione GitHub (GITHUB_TOKEN e GITHUB_OWNER): scarica lo zip e pubblicalo a mano.' });
   if (j.status === 'publishing' || j.published) return res.json(view(j));
-  j.status = 'publishing'; const log = m => j.log.push(m);
+  j.status = 'publishing'; publishJob(j);
+  res.json(view(j));
+});
+
+// ---- importazione dei viaggi passati: una cartella di documenti diventa un sito ricordo, generato e pubblicato senza passare dall'anteprima ----
+app.post('/api/import', admin, express.json({ limit: '60mb' }), (req, res) => {
+  const b = req.body || {}, id = crypto.randomBytes(8).toString('hex'), job = { id, status: 'run', log: [], created: Date.now(), imported: true };
+  jobs.set(id, job); const log = m => job.log.push(m);
   (async () => {
     try {
-      const t = j.trip, desc = `${t.title} · ${t.dateLabel} · ${t.people.map(p => p.name).join(', ')}`.slice(0, 340);
-      log('Creo il repository GitHub ' + gh.OWNER() + '/' + j.slug + '…');
-      const repo = await gh.createRepo(j.slug, desc); j.repo = repo.html_url;
-      await gh.commitFiles(j.slug, 'main', j.files, 'Webapp del viaggio ' + t.title);
-      await gh.ensureBranch(j.slug, 'data', 'main');
-      await sync.initTrip(j.slug, j.users);
-      if (rnd.hasRender()) {
-        log('Creo il sito su Render…');
-        try { const s = await rnd.createStaticSite(j.slug, repo.html_url); j.url = s.url; j.dashboard = s.dashboard; await gh.updateRepo(j.slug, { homepage: s.url }).catch(() => {}); log('Sito creato: il primo deploy richiede uno o due minuti.'); }
-        catch (e) { j.warn = 'Repository creato, sito Render non creato (' + e.message + '). Crealo da Render: New, Static Site, repository ' + j.slug + ', publish directory pwa. Verifica che Render abbia accesso al repository.'; log(j.warn); }
-      } else { j.warn = 'Repository creato. Manca RENDER_API_KEY: crea il sito da Render (New, Static Site, repository ' + j.slug + ', publish directory pwa).'; log(j.warn); }
-      try { await archive.saveTrip(j); log('Viaggio registrato nell\'archivio (' + gh.OWNER() + '/' + archive.REPO() + ').'); } catch (e) { j.warn = (j.warn ? j.warn + ' ' : '') + 'Archivio non aggiornato: ' + e.message; log(j.warn); }
-      j.published = true; j.status = 'done'; log('Fatto.');
-    } catch (e) { j.status = 'preview'; j.error = e.message; log('Pubblicazione non riuscita: ' + e.message); }
+      const people = (b.people || []).map(x => S_(x, 40)).filter(Boolean).slice(0, 8); if (!people.length) throw new Error('Mancano i viaggiatori abituali');
+      const files = (b.files || []).filter(f => f && /^data:(application\/pdf|image\/(jpeg|png|webp));base64,/.test(String(f.data || '')) && f.data.length < 11e6).slice(0, 8);
+      const item = { folder: S_(b.folder, 80), year: parseInt(b.year, 10) || 0, name: S_(b.name, 80), notes: String(b.notes || '').slice(0, 12000), people };
+      if (!item.folder || !item.name) throw new Error('Elemento del pacchetto non valido');
+      if ((await archive.index()).some(t => t.folder === item.folder)) { job.status = 'done'; job.skipped = true; log('Già in archivio: salto.'); return; }
+      log('Claude inquadra il viaggio dai documenti (' + files.length + ' file)…');
+      const fr = ai.hasClaude() ? await ai.genFrame(item, files.map(f => ({ name: S_(f.name, 80), type: f.data.slice(5, f.data.indexOf(';')), b64: f.data.slice(f.data.indexOf(',') + 1) }))) : demo.frame(item);
+      if (!fr || fr.ok === false || !isDate(fr.start) || !isDate(fr.end)) throw new Error('Date del viaggio non ricavabili dai documenti' + (fr && S_(fr.reason, 200) ? ': ' + S_(fr.reason, 200) : '') + '. Va creato a mano dal modulo Nuovo viaggio.');
+      const start = fr.start <= fr.end ? fr.start : fr.end, end = fr.start <= fr.end ? fr.end : fr.start, past = end < new Date().toISOString().slice(0, 10);
+      const names = (Array.isArray(fr.people) ? fr.people : []).map(x => S_(x, 40).split(' ')[0]).filter(x => /^[A-Za-zÀ-ÿ'-]{2,}$/.test(x)).filter((x, i, a) => a.indexOf(x) === i).slice(0, 10);
+      log('Inquadrato: ' + (S_(fr.dest, 80) || item.name) + ', dal ' + start + ' al ' + end + ', ' + (names.length ? names : people).join(', ') + (past ? '' : '. Viaggio non ancora fatto: sito completo, non ricordo') + '.');
+      const r = await buildTrip({ dest: S_(fr.dest, 80) || item.name, origin: S_(fr.origin, 80) || 'Firenze', start, end, mode: fr.mode, people: (names.length ? names : people).map(n => ({ name: n })), lodging: S_(fr.lodging, 200),
+        program: [S_(fr.notes, 1500), item.notes].filter(Boolean).join('\n\n').slice(0, 6000), bookings: files, past, familyPass: b.familyPass, folder: item.folder },
+        { log, syncApi: publicUrl(req), taken: async s => (gh.hasGitHub() ? gh.repoExists(s) : [...jobs.values()].some(j => j !== job && j.slug === s)) });
+      Object.assign(job, { request: r.inp, files: r.files, trip: r.trip, slug: r.trip.slug, cover: r.cover, creds: r.creds, users: r.users, status: 'preview' });
+      if (!gh.hasGitHub()) { await sync.initTrip(job.slug, r.users); job.url = '/preview/' + id + '/'; await archive.saveTrip(job); job.status = 'done'; log('Viaggio registrato nell\'archivio locale.'); return; }
+      job.status = 'publishing'; await publishJob(job);
+      if (job.published) { job.title = job.trip.title; job.nDays = job.trip.days.length; job.nStops = Object.keys(job.trip.poi).length; job.files = null; job.trip = null; job.request = null; job.cover = null; } // 36 viaggi in fila: la memoria va liberata
+    } catch (e) { job.status = 'error'; job.error = e.message; log('Errore: ' + e.message); }
   })();
-  res.json(view(j));
+  res.json({ id });
 });
 
 // ---- archivio permanente di tutti i viaggi ----
@@ -170,6 +200,24 @@ app.get('/api/sync/:slug/doc/:id', trip, async (req, res) => {
   if (!sync.okId(req.params.id)) return res.status(400).end();
   try { const b = await sync.getDoc(req.params.slug, req.params.id); if (!b) return res.status(404).end(); res.set({ 'content-type': 'application/octet-stream', 'cache-control': 'private, max-age=31536000' }).send(b); } catch (e) { res.status(502).end(); }
 });
+// ---- foto del NAS ----
+const nas = require('./lib/nas');
+app.get('/api/nas', admin, async (req, res) => { try { res.json(await nas.config()); } catch (e) { res.status(502).json({ error: e.message }); } });
+app.post('/api/nas', admin, express.json({ limit: '10kb' }), async (req, res) => { try { const c = await nas.setConfig(req.body.url, req.body.roots); if (c.url) await nas.list(c.roots[0] || '/').catch(e => { throw new Error('Indirizzo salvato, ma la prima cartella non si apre: ' + e.message); }); res.json(c); } catch (e) { res.status(400).json({ error: e.message }); } });
+app.get('/api/trips/:slug/nas', admin, async (req, res) => {
+  try { const t = await archive.detail(req.params.slug); if (!t) return res.status(404).json({ error: 'Viaggio non trovato' });
+    const all = await nas.candidates(t.dates.start, t.dates.end), kv = (await sync.state(t.slug)).kv, days = {};
+    all.forEach(f => { const d = days[f.day] = days[f.day] || { date: f.day, n: 0, have: 0, sample: [] }; d.n++; if (kv['ph.' + f.id] && kv['ph.' + f.id].v) d.have++; if (d.sample.length < 6) d.sample.push(f.path); });
+    res.json({ total: all.length, days: Object.keys(days).sort().map(k => days[k]), job: nas.job(t.slug) });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.post('/api/trips/:slug/nas', admin, express.json({ limit: '20kb' }), async (req, res) => {
+  try { const t = await archive.detail(req.params.slug); if (!t) return res.status(404).json({ error: 'Viaggio non trovato' }); const j = nas.job(t.slug); if (j && j.status === 'run') return res.json(j);
+    res.json(nas.importPhotos(t, Array.isArray(req.body.days) ? req.body.days.map(String) : null, 400)); } catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.get('/api/trips/:slug/nas/job', admin, (req, res) => res.json(nas.job(req.params.slug) || { status: 'none' }));
+app.get('/api/nas/thumb', admin, async (req, res) => { try { const b = await nas.thumb(String(req.query.path || ''), 'small'); res.set({ 'content-type': 'image/jpeg', 'cache-control': 'private, max-age=86400' }).send(b); } catch (e) { res.status(502).end(); } });
+
 // ---- posta dei viaggi ----
 const mail = require('./lib/mail');
 const keyOf = async slug => { try { const job = [...jobs.values()].find(j => j.slug === slug && j.files), f = job && job.files.find(x => x.path === 'pwa/auth.json'); const a = gh.hasGitHub() ? await gh.getFile(slug, 'pwa/auth.json', 'main') : f ? Buffer.from(f.data) : null; return a ? creds.tripKey(JSON.parse(a.toString())) : null; } catch (e) { return null; } };

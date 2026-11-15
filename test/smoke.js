@@ -112,6 +112,44 @@ await A.click('#nav button[data-t="s-viaggio"]'); await A.click('#vChips .chip >
     { const ix = await (await fetch(B + '/preview/' + id + '/index.html?pin=1234', { headers: H })).text(), sw = await (await fetch(B + '/preview/' + id + '/sw.js?pin=1234', { headers: H })).text(); const up = require('../lib/build').updateFiles(j.slug, ix, sw); const nsw = up[2].data, as = s => /var ASSETS=(\[[^\n]*?\]);/.exec(s)[1];
       ok(up.length === 3 && as(nsw) === as(sw) && /var CACHE="[^"]+"/.exec(nsw)[0] !== /var CACHE="[^"]+"/.exec(sw)[0] && up[0].data === ix && up[1].data.toString().includes('docSync') && !up.some(f => /trip\.enc|auth\.json/.test(f.path)), 'aggiornamento di una figlia pubblicata: solo codice, stesso titolo, stessa lista di file, contenuto e credenziali intatti');
       r = await fetch(B + '/api/trips/' + j.slug + '/update', { method: 'POST', headers: H }); ok(r.status === 400, 'aggiornamento rifiutato senza GitHub'); }
+    { // viaggi passati: importazione, sito ricordo, accesso famiglia
+      const imp = async body => { const q = await (await fetch(B + '/api/import', { method: 'POST', headers: H, body: JSON.stringify(body) })).json(); let v; for (let i = 0; i < 80; i++) { v = await (await fetch(B + '/api/jobs/' + q.id, { headers: H })).json(); if (v.status !== 'run') break; await sleep(500); } return Object.assign(v, { jid: q.id }); };
+      const it = { folder: '2019/Berlino', year: 2019, name: 'Berlino', notes: 'Hotel Hilton dal 2019-11-01. Museo di Pergamo.', files: [{ name: 'Hilton.jpg', data: photo }], people: ['Francesco', 'Valentina'], familyPass: 'casa-nostra-1' };
+      const v1 = await imp(it); ok(v1.status === 'done' && v1.slug === 'berlino2019' && v1.days === 3, 'importazione: la cartella 2019/Berlino diventa un viaggio dal 1 al 3 novembre 2019 (' + (v1.error || v1.slug) + ')');
+      const v2 = await imp(it); ok(v2.status === 'done' && v2.skipped === true, 'importazione: un viaggio già in archivio viene saltato');
+      const v3 = await imp(Object.assign({}, it, { folder: '2019/Ignoto', name: 'Ignoto', notes: 'senza date' })); ok(v3.status === 'error' && /Date del viaggio/.test(v3.error), 'importazione: senza date ricavabili il viaggio non viene creato');
+      const v4 = await imp(Object.assign({}, it, { folder: '2020/Corta', name: 'Corta', familyPass: 'abc' })); ok(v4.status === 'error' && /password/i.test(v4.error), 'importazione: password della famiglia troppo corta rifiutata');
+      const P = await (await br.newContext({ viewport: { width: 390, height: 844 } })).newPage(); const pe = []; P.on('pageerror', e => pe.push(e.message)); await P.goto(B + '/preview/' + v1.jid + '/'); await sleep(800);
+      await P.fill('#lgU', 'famiglia'); await P.fill('#lgP', 'sbagliata99'); await P.click('#lgB'); await sleep(1500); const bad = await P.evaluate(() => !T);
+      await P.fill('#lgP', 'CASA nostra 1'); await P.click('#lgB'); await sleep(2500);
+      const pv = await P.evaluate(() => ({ in: !!T, past: T && T.past, fam: T && T.family, nav: document.getElementById('nav').innerText, todo: (T.todo || []).length, parked: (T.parked || []).length, gaps: (T.gaps || []).length, now: document.getElementById('s-gruppo').innerText, people: T.people.map(p => p.name).join(',') }));
+      ok(bad && pv.in && pv.past === true && pv.fam === true, 'sito ricordo: si entra solo con utente famiglia e la password scelta');
+      ok(/DOCUMENTI/.test(pv.nav) && !/PRENOTAZIONI/.test(pv.nav) && pv.todo === 0 && pv.parked === 0 && pv.gaps === 0 && /Viaggio del 2019/i.test(pv.now) && pv.people === 'Francesco,Valentina', 'sito ricordo: niente prenotazioni né mete in più, intestazione da viaggio fatto');
+      await P.evaluate(() => closeIntro()); await sleep(700);
+      await P.click('.pp >> nth=1'); await sleep(200); ok(await P.evaluate(() => me().name) === 'Valentina', 'accesso famiglia: ognuno sceglie il proprio nome');
+      for (const t of ['s-meta', 's-arrivo', 's-viaggio', 's-conti', 's-foto', 's-altro']) { await P.click(`#nav button[data-t="${t}"]`); await sleep(200); }
+      await P.evaluate(() => sync(true)); await sleep(1200); ok(pe.length === 0 && await P.evaluate(() => syncState) === 'ok', 'sito ricordo: tutte le sezioni si aprono e i dati si sincronizzano' + (pe.length ? ': ' + pe.join(' ; ') : '')); await P.screenshot({ path: '/tmp/shot-ricordo.png' }); await P.close(); }
+    { // foto del NAS: un finto NAS Synology con lo stesso protocollo verificato sul NAS vero
+      const http = require('http'), sharp = require('sharp'), jpg = await sharp({ create: { width: 900, height: 600, channels: 3, background: { r: 200, g: 120, b: 40 } } }).jpeg().toBuffer();
+      const big = Buffer.concat([jpg, Buffer.alloc(40000)]), tsOf = d => Math.floor(new Date(d + 'T10:00:00Z').getTime() / 1000);
+      const FS = { '/Foto/Tel/2019/11': [['a.jpg', '2019-11-01'], ['b.JPG', '2019-11-02'], ['c.heic', '2019-11-02'], ['fuori.jpg', '2019-11-20'], ['note.txt', '2019-11-01']] };
+      const fake = http.createServer((q, s) => { const u = new URL(q.url, 'http://x'), ck = /sharing_sid=abc/.test(q.headers.cookie || '');
+        if (u.pathname === '/sharing/CODE1') { s.writeHead(200, { 'set-cookie': 'sharing_sid=abc; path=/' }); return s.end('<html></html>'); }
+        const fin = prm => { if (!ck) return s.end(JSON.stringify({ success: false, error: { code: 101 } })); const api = prm.get('api');
+          if (api === 'SYNO.FolderSharing.List') { const fl = FS[JSON.parse(prm.get('folder_path'))]; if (!fl) return s.end(JSON.stringify({ success: false, error: { code: 408 } })); return s.end(JSON.stringify({ success: true, data: { total: fl.length, files: fl.map(f => ({ name: f[0], path: JSON.parse(prm.get('folder_path')) + '/' + f[0], isdir: false, additional: { size: 50000, time: { mtime: tsOf(f[1]) } } })) } })); }
+          if (api === 'SYNO.FolderSharing.Download') { const p = JSON.parse(prm.get('path'))[0]; s.writeHead(200, { 'content-type': 'application/octet-stream' }); return s.end(/heic/.test(p) ? Buffer.from('non una foto') : big); }
+          if (api === 'SYNO.FolderSharing.Thumb') { s.writeHead(200, { 'content-type': 'image/jpeg' }); return s.end(jpg); } s.end('{}'); };
+        if (q.method === 'POST') { let b = ''; q.on('data', d => b += d); q.on('end', () => fin(new URLSearchParams(b))); } else fin(u.searchParams); }).listen(3124);
+      r = await fetch(B + '/api/nas', { method: 'POST', headers: H, body: JSON.stringify({ url: 'https://gofile.me/x/y', roots: ['/Foto/Tel'] }) }); ok(r.status === 400, 'NAS: un link gofile.me non risolto viene rifiutato con la spiegazione');
+      process.env.NODE_TLS = ''; r = await fetch(B + '/api/nas', { method: 'POST', headers: H, body: JSON.stringify({ url: 'http://127.0.0.1:3124/sharing/CODE1', roots: ['/Foto/Tel'] }) });
+      const nc = await r.json(); ok(r.ok && nc.roots.length === 1, 'NAS: cartella configurata e raggiunta (' + (nc.error || 'ok') + ')');
+      r = await fetch(B + '/api/trips/berlino2019/nas', { headers: H }); const nl = await r.json(); ok(r.ok && nl.total === 3 && nl.days.length === 2 && nl.days[1].n === 2, 'NAS: trovate le 3 foto scattate nei giorni del viaggio, escluse quella di altra data e i file non foto (' + (nl.error || nl.total) + ')');
+      r = await fetch(B + '/api/trips/berlino2019/nas', { method: 'POST', headers: H, body: JSON.stringify({ days: ['2019-11-02'] }) }); let nj; for (let i = 0; i < 40; i++) { nj = await (await fetch(B + '/api/trips/berlino2019/nas/job', { headers: H })).json(); if (nj.status !== 'run') break; await sleep(300); }
+      ok(nj.status === 'done' && nj.done === 2 && nj.failed === 0, 'NAS: importate le 2 foto della giornata scelta, compresa quella in formato HEIC tramite l\'anteprima del NAS (' + nj.msg + ')');
+      r = await fetch(B + '/api/trips/berlino2019/nas', { method: 'POST', headers: H, body: JSON.stringify({ days: ['2019-11-02'] }) }); for (let i = 0; i < 40; i++) { nj = await (await fetch(B + '/api/trips/berlino2019/nas/job', { headers: H })).json(); if (nj.status !== 'run') break; await sleep(300); }
+      ok(nj.status === 'done' && nj.done === 0 && nj.skipped === 2, 'NAS: una seconda importazione non duplica le foto');
+      r = await fetch(B + '/api/nas/thumb?path=' + encodeURIComponent('/Foto/Tel/2019/11/a.jpg'), { headers: H }); ok(r.ok && r.headers.get('content-type') === 'image/jpeg', 'NAS: anteprime visibili dalla madre'); r = await fetch(B + '/api/nas/thumb?path=x'); ok(r.status === 401, 'NAS: niente anteprime senza PIN');
+      fake.close(); }
     ok(errs.length === 0, 'nessun errore JavaScript nella figlia' + (errs.length ? ': ' + errs.join(' ; ') : ''));
     // madre
     const M = await (await br.newContext({ viewport: { width: 900, height: 900 } })).newPage(); M.on('pageerror', e => errs.push('madre: ' + e.message)); M.on('dialog', d => d.accept());

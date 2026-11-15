@@ -17,7 +17,7 @@ function load(){
   var d=null;try{d=JSON.parse(localStorage.getItem(LS)||"null");}catch(e){}
   S=d||{};S.kv=S.kv||{};S.dirty=S.dirty||{};S.rev=S.rev||0;S.code=S.code||"";S.notified=S.notified||{};
   KV=S.kv;
-  var mine=(T.people||[]).filter(function(p){return AUTH&&p.u===AUTH.u;})[0];S.me=mine?mine.id:null;
+  var mine=(T.people||[]).filter(function(p){return AUTH&&p.u===AUTH.u;})[0];S.me=mine?mine.id:((T.family&&person(S.me))?S.me:null);
 }
 function g(k,def){return (KV[k]&&KV[k].v!=null)?KV[k].v:def;}
 function put(k,v){KV[k]={v:v,ts:Date.now()};S.dirty[k]=1;save();schedSync();}
@@ -94,7 +94,7 @@ function nowCard(){
   var nr=nowRow(), now=new Date(), dep=new Date(T.dates.start+"T"+(DAYS[0].start||"09:00")+":00"), ret=new Date(T.dates.end+"T23:59:00");
   var box=function(k,body){return '<div class="card nowc"><div class="k">'+k+'</div><div class="in">'+body+'</div></div>';};
   if(!nr){
-    if(now>ret)return box("Viaggio concluso",'<h3>'+esc(T.title)+'</h3><div class="muted">Le foto stanno in Foto, il diario pure: è il momento del fotolibro.</div>');
+    if(now>ret){var yrs=Math.floor((now-ret)/31557600000);return box(T.past?"Viaggio del "+T.dates.start.slice(0,4)+(yrs>0?" · "+yrs+(yrs===1?" anno fa":" anni fa"):""):"Viaggio concluso",'<h3>'+esc(T.title)+'</h3><div class="muted">'+(T.past?'Il viaggio com\'è andato, ricostruito dai documenti conservati. Correggete le tappe, aggiungete foto e righe di diario: poi diventa un fotolibro.':'Le foto stanno in Foto, il diario pure: è il momento del fotolibro.')+'</div>'+(T.past?'<div class="row" style="margin-top:10px"><button class="btn sec" onclick="vTab=-1;go(\'s-viaggio\')">Il viaggio</button><button class="btn sec" onclick="go(\'s-foto\')">Foto e diario</button></div>':''));}
     var dd=Math.ceil((dep-now)/86400000), todo=(T.todo||[]).filter(function(t){return !g("todo."+t.id)&&t.pri===1;}).length;
     return box("Imbarco tra "+dd+" giorn"+(dd===1?"o":"i"),'<h3>Si parte '+esc(dlabel(DAYS[0]).toLowerCase())+'</h3><div class="muted">'+(todo?todo+' prenotazioni urgenti ancora da fare.':'Le prenotazioni urgenti sono tutte spuntate.')+' Nei giorni del viaggio qui compaiono la tappa in corso e la prossima.</div>'+
       '<div class="row" style="margin-top:10px"><button class="btn sec" onclick="go(\'s-arrivo\')">Prenotazioni</button><button class="btn sec" onclick="vTab=0;go(\'s-viaggio\')">'+esc(dshort(DAYS[0]))+'</button></div>');
@@ -113,7 +113,7 @@ var vTab=-1, LMAP=null, LLAY=null; /* -1 sintesi, 0..n giorni, 99 mappa */
 function renderViaggio(){
   var ch='<button class="chip'+(vTab===-1?" on":"")+'" onclick="vTab=-1;renderViaggio()">Programma</button>';
   DAYS.forEach(function(D,i){ch+='<button class="chip'+(vTab===i?" on":"")+'" onclick="vTab='+i+';renderViaggio()">'+esc(D.dow.slice(0,3)+" "+("0"+D.n).slice(-2))+'</button>';});
-  ch+='<button class="chip'+(vTab===97?" on":"")+'" onclick="vTab=97;renderViaggio()">Altre mete</button><button class="chip'+(vTab===98?" on":"")+'" onclick="vTab=98;renderViaggio()">Tavola</button><button class="chip'+(vTab===99?" on":"")+'" onclick="vTab=99;renderViaggio()">Mappa</button>';
+  ch+=(T.past?'':'<button class="chip'+(vTab===97?" on":"")+'" onclick="vTab=97;renderViaggio()">Altre mete</button>')+'<button class="chip'+(vTab===98?" on":"")+'" onclick="vTab=98;renderViaggio()">Tavola</button><button class="chip'+(vTab===99?" on":"")+'" onclick="vTab=99;renderViaggio()">Mappa</button>';
   $("vChips").innerHTML=ch;
   $("lmapWrap").style.display=vTab===99?"block":"none";
   if(vTab===99){$("vBody").innerHTML=mapChips();drawMap();return;}
@@ -121,7 +121,7 @@ function renderViaggio(){
 }
 function planHtml(){
   var h=nowCard(), nr=nowRow(), P=parked();
-  h+='<div class="card soft"><h3>Il programma</h3><p class="muted" style="margin-top:6px">'+esc(T.planIntro||"")+' Tocca un biglietto per spostare la tappa, cambiarne l\'ordine o toglierla: orari, tragitti, costi e mappa si ricalcolano.'+(syncOn()?' Le modifiche valgono per tutto il gruppo.':'')+'</p>'+
+  h+='<div class="card soft"><h3>'+(T.past?"Com\'è andata":"Il programma")+'</h3><p class="muted" style="margin-top:6px">'+esc(T.planIntro||"")+' Tocca un biglietto per spostare la tappa, cambiarne l\'ordine o toglierla: orari, tragitti, costi e mappa si ricalcolano.'+(syncOn()?' Le modifiche valgono per tutto il gruppo.':'')+'</p>'+
     '<div class="grid2" style="margin-top:10px"><button class="btn sec" onclick="resetPlan()">Ripristina</button><button class="btn sec" onclick="openSearch()">Cerca</button><button class="btn sec" onclick="vTab=99;renderViaggio()">Mappa</button><button class="btn sec" onclick="openPrintPage()">Stampabile</button></div></div>';
   var tk0=0,tc=0,tn=0;
   DAYS.forEach(function(D,di){
@@ -136,7 +136,7 @@ function planHtml(){
     });
     if(s.back)h+='<div class="trf"><span>rientro · '+esc(s.back.txt)+'</span></div>';
   });
-  h+='<div class="tt">Altre mete</div><div class="card"><p class="muted" style="margin:0 0 10px">'+P.length+' mete fuori programma, pronte per le variazioni: quelle proposte in più e quelle che togli dai giorni.</p><button class="btn full" onclick="vTab=97;renderViaggio();$(\'scroll\').scrollTo(0,0)">Apri le altre mete</button></div>';
+  if(!T.past)h+='<div class="tt">Altre mete</div><div class="card"><p class="muted" style="margin:0 0 10px">'+P.length+' mete fuori programma, pronte per le variazioni: quelle proposte in più e quelle che togli dai giorni.</p><button class="btn full" onclick="vTab=97;renderViaggio();$(\'scroll\').scrollTo(0,0)">Apri le altre mete</button></div>';
   h+='<div class="tt">Il viaggio in numeri</div><div class="card"><div class="kv"><b>Tappe</b><span>'+tn+' in '+DAYS.length+' giorni, '+P.length+' fuori programma</span></div><div class="kv"><b>A piedi</b><span>circa '+tk0.toFixed(1)+' km in totale</span></div><div class="kv"><b>Ingressi e pasti</b><span>circa '+eur0(tc)+' a testa secondo il programma. Il quadro completo è in Conti.</span></div></div>';
   return h;
 }
@@ -229,9 +229,9 @@ function detail(id){
   if(!p.masked){
     wd().filter(function(d){return d.poi===id;}).forEach(function(d){h+=docRow(d);});
     tripBk(id).forEach(function(b){var dd=b.date.slice(8)+"/"+b.date.slice(5,7);h+='<div class="wdoc"><div><span class="pill b">'+((T.docs[b.doc-1].type==="application/pdf")?"PDF":"FOTO")+'</span></div><div class="bd"><b>'+esc(T.docs[b.doc-1].name)+'</b><div class="muted small">'+esc(["Biglietto del "+dd,[b.carrier,b.number].filter(Boolean).join(" "),b.pnr?"prenotazione "+b.pnr:""].filter(Boolean).join(" · "))+'</div></div><button onclick="openTripDoc('+(b.doc-1)+')">Apri</button></div>';});
-    if(p.book)h+='<a class="btn full" style="margin-top:12px" href="'+safeUrl(p.book)+'" target="_blank" rel="noopener">Prenota adesso</a>';
+    if(p.book&&!T.past)h+='<a class="btn full" style="margin-top:12px" href="'+safeUrl(p.book)+'" target="_blank" rel="noopener">Prenota adesso</a>';
     if(p.url)h+='<a class="btn '+(p.book?"sec ":"")+'full" style="margin-top:8px" href="'+safeUrl(p.url)+'" target="_blank" rel="noopener">'+esc(p.urlTxt||"Sito ufficiale")+'</a>';
-    if(p.kind==="see")h+='<a class="btn sec full" style="margin-top:8px" href="'+gyg(p.n)+'" target="_blank" rel="noopener">Biglietti e visite guidate (GetYourGuide)</a>';
+    if(p.kind==="see"&&!T.past)h+='<a class="btn sec full" style="margin-top:8px" href="'+gyg(p.n)+'" target="_blank" rel="noopener">Biglietti e visite guidate (GetYourGuide)</a>';
     if(p.kind!=="fix")h+='<a class="btn sec full" style="margin-top:8px" href="'+gSearch(p)+'" target="_blank" rel="noopener">Orari, recensioni e prenotazione su Google</a>';
     h+='<button class="btn sec full" style="margin-top:8px" onclick="pickDocFor(\''+id+'\')">Aggiungi biglietto o documento</button>';
     if(geo(p))h+='<div class="row" style="margin-top:8px"><button class="btn ghost" onclick="closeSheet();showOnMap(\''+id+'\')">Sulla mappa</button><a class="btn ghost" href="https://www.google.com/maps/dir/?api=1&destination='+p.lat+','+p.lon+'" target="_blank" rel="noopener">Portami lì</a></div>';
@@ -266,10 +266,10 @@ function drawMap(){
 /* ============ GRUPPO ============ */
 function renderGruppo(){
   var h=nowCard()+'<div class="tt">Passeggeri</div><div class="card"><div class="ppl">';
-  T.people.forEach(function(p){h+='<div class="pp'+(S.me===p.id?" me":"")+'">'+av(p)+esc(p.name)+(S.me===p.id?'<div class="pill b" style="margin-top:5px">sei tu</div>':'')+'</div>';});
-  h+='</div><p class="muted" style="margin:10px 0 0">Sei entrato come <b>'+esc(me().name)+'</b>: foto, spese, diario e lista bagagli portano il tuo nome.</p>'+
+  T.people.forEach(function(p){h+='<div class="pp'+(S.me===p.id?" me":"")+'"'+(T.family?' onclick="S.me=\''+p.id+'\';save();renderGruppo()" style="cursor:pointer"':'')+'>'+av(p)+esc(p.name)+(S.me===p.id?'<div class="pill b" style="margin-top:5px">sei tu</div>':'')+'</div>';});
+  h+='</div><p class="muted" style="margin:10px 0 0">'+(T.family?(S.me?'Stai scrivendo come <b>'+esc(me().name)+'</b>':'Accesso di famiglia: tocca il tuo nome')+', così foto e diario portano la firma giusta.':'Sei entrato come <b>'+esc(me().name)+'</b>: foto, spese, diario e lista bagagli portano il tuo nome.')+'</p>'+
     '<div class="row" style="margin-top:12px"><button class="btn" onclick="shareLink()">Condividi l\'app</button><button class="btn sec" onclick="copyLink()">Copia link</button></div></div>';
-  if(T.program)h+='<div class="tt">Il programma di massima</div><div class="card"><div style="font-size:14px;white-space:pre-wrap">'+esc(T.program)+'</div></div>';
+  if(T.program)h+='<div class="tt">'+(T.past?"Appunti del viaggio":"Il programma di massima")+'</div><div class="card"><div style="font-size:14px;white-space:pre-wrap">'+esc(T.program)+'</div></div>';
   if((T.refs||[]).length){h+='<div class="tt">Reference condivise</div><div class="card">';T.refs.forEach(function(r){h+='<div class="kv"><span><a href="'+safeUrl(r.u)+'" target="_blank" rel="noopener">'+esc(r.t||r.u)+'</a></span></div>';});h+='</div>';}
   h+=syncCard();
   $("s-gruppo").innerHTML=h;
@@ -300,7 +300,7 @@ function speak(t){try{var u=new SpeechSynthesisUtterance(t);u.lang=T.dest.langCo
 function renderMeta(){
   var I=T.info||{}, h='<div class="card soft"><h3>'+esc(T.dest.name)+(T.dest.country?', '+esc(T.dest.country):'')+'</h3><p style="font-size:14px;margin-top:8px">'+esc(I.intro||"")+'</p></div>';
   if((I.photos||[]).length){h+='<div class="ph">';I.photos.forEach(function(p){h+='<figure><img src="'+esc(p.u)+'" alt="" loading="lazy"><figcaption>'+esc(p.cap||"")+(p.credit?' · '+esc(p.credit):'')+'</figcaption></figure>';});h+='</div>';}
-  h+='<div class="tt">Meteo</div>'+wxHtml();
+  if(!T.past)h+='<div class="tt">Meteo</div>'+wxHtml();
   if(I.climate)h+='<div class="card"><div style="font-size:13.5px">'+esc(I.climate)+'</div></div>';
   if(I.history)h+='<div class="tt">La storia in breve</div><div class="card"><div style="font-size:14px;white-space:pre-wrap">'+esc(I.history)+'</div></div>';
   if((I.facts||[]).length){h+='<div class="tt">In breve</div><div class="card">';I.facts.forEach(function(r){h+='<div class="kv"><b>'+esc(r[0])+'</b><span>'+esc(r[1])+'</span></div>';});h+='</div>';}
@@ -682,13 +682,13 @@ async function delDoc(id){if(!confirm("Elimino il documento"+(syncOn()?" per tut
 
 /* ============ ALTRO: bagagli, avvisi, sync, app ============ */
 function renderAltro(){
-  var h='<div class="tt" style="margin-top:4px">Bagagli e documenti di '+esc(me().name)+'</div><div class="card">';
+  var h=(T.pack||[]).length?'<div class="tt" style="margin-top:4px">Bagagli e documenti di '+esc(me().name)+'</div><div class="card">':'<div>';
   (T.pack||[]).forEach(function(c,ci){var done=c.items.filter(function(x,ii){return g("pack."+ci+"_"+ii+"."+me().id);}).length;
     h+='<h4 style="margin-top:12px">'+esc(c.cat)+' · '+done+'/'+c.items.length+'</h4>';
     c.items.forEach(function(x,ii){var k="pack."+ci+"_"+ii+"."+me().id,dn=g(k);h+='<div class="ck'+(dn?" done":"")+'" style="padding:6px 0" onclick="put(\''+k+'\','+(dn?0:1)+');renderAltro()"><div class="box">'+(dn?"✓":"")+'</div><div class="bd"><b style="font-weight:600">'+esc(x)+'</b></div></div>';});});
   h+='</div>';
   var nOk=S.notif&&("Notification" in window)&&Notification.permission==="granted";
-  h+='<div class="tt">Avvisi e calendario</div><div class="card">'+(nOk?'<div class="pill g" style="margin-bottom:8px">Avvisi attivi su questo telefono</div><button class="btn ghost full" onclick="S.notif=0;save();renderAltro()">Disattiva gli avvisi</button>':'<p class="small" style="margin:0 0 8px">Nei giorni del viaggio, 30 minuti prima di ogni tappa. Funziona con l\'app aperta o in secondo piano da poco; su iPhone solo con l\'app installata.</p><button class="btn full" onclick="enableNotif()">Attiva gli avvisi</button>')+
+  if(!T.past)h+='<div class="tt">Avvisi e calendario</div><div class="card">'+(nOk?'<div class="pill g" style="margin-bottom:8px">Avvisi attivi su questo telefono</div><button class="btn ghost full" onclick="S.notif=0;save();renderAltro()">Disattiva gli avvisi</button>':'<p class="small" style="margin:0 0 8px">Nei giorni del viaggio, 30 minuti prima di ogni tappa. Funziona con l\'app aperta o in secondo piano da poco; su iPhone solo con l\'app installata.</p><button class="btn full" onclick="enableNotif()">Attiva gli avvisi</button>')+
     '<hr><p class="small" style="margin:0 0 8px">Il metodo che non sbaglia: il programma nel calendario del telefono, con sveglia 30 minuti prima di ogni tappa.</p><button class="btn sec full" onclick="exportIcs()">Scarica il programma nel calendario (.ics)</button></div>';
   h+=syncCard();
   h+='<div class="tt">L\'app sul telefono</div><div class="card"><div class="pill y" style="margin-bottom:8px">Versione '+esc(APP_VER)+'</div><p class="small" style="margin:0 0 8px">Android: menu di Chrome, Installa app. iPhone: in Safari, Condividi, Aggiungi alla schermata Home. Dopo l\'installazione funziona anche offline.</p>'+(deferredInstall?'<button class="btn full" style="margin-bottom:8px" onclick="doInstall()">Installa l\'app su questo telefono</button>':'')+'<div class="row"><button class="btn" onclick="shareLink()">Condividi</button><button class="btn sec" onclick="checkUpdate()">Aggiorna</button></div>'+
@@ -862,6 +862,7 @@ async function startApp(fresh){
   $("hTitle").textContent=T.title;header();
   $("inT").textContent=T.title;$("inS").textContent=(T.dateLabel||"")+" · "+T.people.map(function(p){return p.name;}).join(", ");
   $("finT").textContent=T.title;$("verTag").textContent="Versione "+APP_VER;
+  if(T.past)TABS[2][1]="DOCUMENTI";
   $("nav").innerHTML=TABS.map(function(t,i){return '<button data-t="'+t[0]+'" class="'+(i===0?"on":"")+'" onclick="go(\''+t[0]+'\')">'+t[1]+'</button>';}).join("");
   var seen=false;try{seen=sessionStorage.getItem(LS+"_in")==="1";}catch(e){} if(!seen)showIntro();
   $("fileIn").addEventListener("change",function(e){var a=Array.prototype.slice.call(e.target.files||[]);e.target.value="";if(a.length)addFiles(a);});

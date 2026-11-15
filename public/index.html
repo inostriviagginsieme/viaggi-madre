@@ -103,12 +103,21 @@ iframe{width:100%;height:640px;border:1px solid var(--line);border-radius:16px;b
 </section>
 
 <section id="t-arc" class="hide"><div class="card"><h2>Archivio di tutti i viaggi</h2><p class="muted" id="arcWhere"></p><div id="arc" class="muted">Carico…</div></div><div id="arcCred"></div><div id="arcDet"></div>
+<div class="card"><h2>Importa i viaggi passati</h2><p class="muted">Un pacchetto di cartelle di documenti diventa una serie di siti ricordo: per ogni viaggio Claude ricava destinazione, date e viaggiatori dai documenti, ricostruisce il programma e la madre pubblica il sito. I viaggi già in archivio vengono saltati. Lascia aperta questa pagina fino alla fine: due o tre minuti a viaggio.</p>
+<label>Pacchetto dei viaggi (.json)</label><input type="file" id="impFile" accept=".json,application/json">
+<label>Viaggiatori abituali, separati da virgola</label><input id="impPeople" value="Francesco, Valentina">
+<label>Password della famiglia, la stessa per tutti i siti (almeno 8 lettere o cifre, senza distinzione tra maiuscole e minuscole)</label><input id="impPass" type="password" autocomplete="new-password">
+<button class="btn full" style="margin-top:12px" id="impBtn" onclick="impStart()">Genera e pubblica i siti</button><div id="impLog" style="margin-top:10px"></div></div>
 <div class="card"><h2>Aggiungi un viaggio fatto fuori da qui</h2><p class="muted">Per tenere in archivio anche le webapp nate prima, come Parigi 2027 e Praga 2026.</p>
 <div class="row"><div><label>Nome breve</label><input id="mSlug" placeholder="parigi2027"></div><div><label>Titolo</label><input id="mTitle" placeholder="Parigi 2027"></div></div>
 <div class="row"><div><label>Dal</label><input id="mStart" type="date"></div><div><label>Al</label><input id="mEnd" type="date"></div></div>
 <label>Destinazione</label><input id="mDest"><label>Partecipanti, separati da virgola</label><input id="mPeople"><label>Indirizzo della webapp</label><input id="mUrl" placeholder="https://...">
 <button class="btn sec full" style="margin-top:12px" onclick="addManual()">Aggiungi all'archivio</button></div></section>
 <section id="t-cfg" class="hide"><div class="card"><h2>Collegamenti</h2><div id="cfg"></div><button class="btn full" style="margin-top:12px" id="stBtn" onclick="selftest()">Prova i collegamenti adesso</button><p class="muted" style="margin:8px 0 0">Una chiamata minima a ogni servizio, pochi secondi e pochi centesimi. Da fare dopo ogni aggiornamento, prima di generare un viaggio.</p><div id="stOut"></div></div>
+<div class="card"><h2>Foto del NAS</h2><p class="muted">La madre legge una cartella condivisa del NAS (link di condivisione di File Station), trova le foto scattate nei giorni di ogni viaggio dalla data del file e le propone in Archivio, pulsante Foto dal NAS: le porti nell'album solo dopo averle controllate.</p>
+<label>Indirizzo della condivisione (quello che compare nel browser dopo aver aperto il link, finisce con /sharing/ e un codice)</label><input id="nasUrl" placeholder="https://…quickconnect.to/sharing/…">
+<label>Cartelle delle foto, una per riga, organizzate per anno e mese</label><textarea id="nasRoots" rows="3" placeholder="/MobileBackup/iPhone"></textarea>
+<button class="btn full" style="margin-top:10px" onclick="nasSave()">Salva e prova</button><p class="muted" id="nasMsg" style="margin:8px 0 0"></p></div>
 <div class="card"><h2>Posta dei viaggi</h2><p class="muted" id="mlInfo"></p><button class="btn full" id="mlBtn" onclick="mailPoll()">Leggi la posta adesso</button><div id="mlLog" style="margin-top:10px"></div></div>
 <div class="card"><h2>Cosa serve</h2><p class="muted">Le chiavi si inseriscono su Render, nelle variabili d'ambiente di questo servizio. L'elenco completo e i passaggi sono nel README del repository.</p></div></section>
 </div>
@@ -126,7 +135,7 @@ function gate(){$("gate").classList.remove("hide");$("appBox").classList.add("hi
 async function login(){PIN=$("pin").value;try{await start();sessionStorage.setItem("pin",PIN);}catch(e){$("gateErr").textContent=e.message;}}
 async function start(){CFG=await api("/api/config");$("gate").classList.add("hide");$("appBox").classList.remove("hide");cfg();people();}
 function tab(t){["new","arc","cfg"].forEach(function(x){$("t-"+x).classList.toggle("hide",x!==t);});
-  document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("on",b.dataset.t===t);});if(t==="arc")archive();if(t==="cfg")mailLoad();}
+  document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("on",b.dataset.t===t);});if(t==="arc")archive();if(t==="cfg"){mailLoad();nasLoad();}}
 function mode(m){MODE=m;document.querySelectorAll("#modeSeg button").forEach(function(b){b.classList.toggle("on",b.dataset.m===m);});}
 function people(){
   var n=Math.max(1,Math.min(12,parseInt($("npeople").value,10)||1)),box=$("ppl"),old=[].map.call(box.querySelectorAll("input[type=text]"),function(i){return i.value;}),h="";
@@ -204,7 +213,7 @@ async function archive(){
     $("arcWhere").textContent=j.permanent?"Conservato in modo permanente nel repository privato "+j.where+": scheda completa, richiesta originale e copia del sito di ogni viaggio.":"Attenzione: senza GitHub l'archivio sta in una cartella locale e sul piano gratuito di Render si perde a ogni riavvio. Configura GITHUB_TOKEN per renderlo permanente.";
     $("arc").innerHTML=j.trips.length?j.trips.map(function(t){var s=esc(t.slug);return '<div class="trip" style="flex-wrap:wrap">'+(t.icon?'<img src="'+esc(t.icon)+'" style="width:54px;height:54px;border-radius:14px" alt="">':'<div style="width:54px;height:54px;border-radius:14px;background:var(--linen)"></div>')+
       '<div class="bd"><b>'+esc(t.title)+'</b><span class="muted">'+esc(t.dateLabel)+(t.dest?' · '+esc(t.dest):'')+'<br>'+esc((t.people||[]).join(", "))+(t.mode?' · '+esc(t.mode):'')+(t.generated?' · '+t.days+' giorni, '+t.stops+' tappe':'')+'</span></div>'+
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;width:100%">'+(t.url?'<a class="btn" href="'+esc(t.url)+'" target="_blank" rel="noopener">Apri</a>':'')+(t.generated?'<button class="btn sec" onclick="det(\''+s+'\')">Scheda</button><button class="btn sec" onclick="getZip(\''+s+'\')">Copia del sito</button><button class="btn sec" onclick="newCreds(\''+s+'\',\''+esc(t.url)+'\')">Credenziali</button><button class="btn sec" onclick="updApp(\''+s+'\')">Aggiorna l\'app</button><button class="btn sec" onclick="printBox(\''+s+'\')">Fotolibro</button>':'')+(t.repo?'<a class="btn sec" href="'+esc(t.repo)+'" target="_blank" rel="noopener">Repository</a>':'')+'</div></div>';}).join(""):'Ancora nessun viaggio.';
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;width:100%">'+(t.url?'<a class="btn" href="'+esc(t.url)+'" target="_blank" rel="noopener">Apri</a>':'')+(t.generated?'<button class="btn sec" onclick="det(\''+s+'\')">Scheda</button><button class="btn sec" onclick="getZip(\''+s+'\')">Copia del sito</button><button class="btn sec" onclick="newCreds(\''+s+'\',\''+esc(t.url)+'\')">Credenziali</button><button class="btn sec" onclick="updApp(\''+s+'\')">Aggiorna l\'app</button><button class="btn sec" onclick="nasTrip(\''+s+'\')">Foto dal NAS</button><button class="btn sec" onclick="printBox(\''+s+'\')">Fotolibro</button>':'')+(t.repo?'<a class="btn sec" href="'+esc(t.repo)+'" target="_blank" rel="noopener">Repository</a>':'')+'</div></div>';}).join(""):'Ancora nessun viaggio.';
   }catch(e){$("arc").textContent=e.message;}
 }
 async function det(slug){
@@ -249,7 +258,43 @@ async function updApp(slug){if(!confirm("Porto la webapp di questo viaggio all'u
   try{var j=await api("/api/trips/"+slug+"/update",{method:"POST"});alert("Aggiornata alla versione "+j.version+". Tra uno o due minuti, sui telefoni: Altro, Aggiorna.");}catch(e){alert("Aggiornamento non riuscito: "+e.message);}}
 async function getZip(slug){try{var r=await fetch("/api/trips/"+slug+"/zip",{headers:{"x-admin-pin":PIN}});if(!r.ok)throw new Error("Copia del sito non presente");var u=URL.createObjectURL(await r.blob()),a=document.createElement("a");a.href=u;a.download=slug+".zip";document.body.appendChild(a);a.click();a.remove();}catch(e){alert(e.message);}}
 async function addManual(){try{await api("/api/trips/manual",{method:"POST",body:{slug:$("mSlug").value,title:$("mTitle").value,start:$("mStart").value,end:$("mEnd").value,dest:$("mDest").value,people:$("mPeople").value,url:$("mUrl").value,dateLabel:$("mStart").value&&$("mEnd").value?$("mStart").value.split("-").reverse().join("/")+" → "+$("mEnd").value.split("-").reverse().join("/"):""}});["mSlug","mTitle","mStart","mEnd","mDest","mPeople","mUrl"].forEach(function(i){$(i).value="";});archive();window.scrollTo(0,0);}catch(e){alert(e.message);}}
-var ARC=[];
+async function nasLoad(){try{var c=await api("/api/nas");$("nasUrl").value=c.url||"";$("nasRoots").value=(c.roots||[]).join("\n");$("nasMsg").textContent=c.url?"Cartella configurata.":"Non ancora configurata.";}catch(e){$("nasMsg").textContent=e.message;}}
+async function nasSave(){$("nasMsg").textContent="Provo il collegamento…";try{var c=await api("/api/nas",{method:"POST",body:{url:$("nasUrl").value,roots:$("nasRoots").value.split("\n")}});$("nasMsg").textContent=c.url?"Collegamento riuscito: la prima cartella si apre.":"Cartella rimossa.";}catch(e){$("nasMsg").textContent=e.message;}}
+var NAS={};
+async function nasTrip(slug){var box=$("arcDet");box.innerHTML='<div class="card"><h2>Foto dal NAS</h2><p class="muted">Cerco le foto scattate nei giorni del viaggio…</p></div>';box.scrollIntoView();
+  try{var j=await api("/api/trips/"+slug+"/nas");NAS={slug:slug,j:j};
+    var dd=function(d){return d.slice(8)+"/"+d.slice(5,7)+"/"+d.slice(0,4);};
+    box.innerHTML='<div class="card"><h2>Foto dal NAS</h2><p class="muted">'+(j.total?j.total+" foto scattate nei giorni del viaggio, abbinate dalla data del file. Controlla le anteprime, togli la spunta alle giornate che non c'entrano e porta le altre nell'album: i partecipanti le vedono alla prima apertura dell'app. Al massimo 400 per volta; quelle già presenti si saltano.":"Nessuna foto trovata nei giorni di questo viaggio nelle cartelle configurate.")+'</p>'+
+      j.days.map(function(d,i){return '<div class="kv" style="display:block"><label style="display:flex;gap:8px;align-items:center;font-weight:700"><input type="checkbox" class="nasD" value="'+d.date+'" checked style="width:auto"> '+dd(d.date)+' · '+d.n+' foto'+(d.have?' ('+d.have+' già nell\'album)':'')+'</label><div id="nasT'+i+'" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px"></div></div>';}).join("")+
+      (j.total?'<button class="btn full" style="margin-top:12px" id="nasGo" onclick="nasImport()">Porta nell\'album le giornate scelte</button>':'')+'<p class="muted" id="nasJob" style="margin:8px 0 0"></p></div>';
+    j.days.forEach(function(d,i){d.sample.forEach(async function(p){try{var r=await fetch("/api/nas/thumb?path="+encodeURIComponent(p),{headers:{"x-admin-pin":PIN}});if(!r.ok)return;var im=document.createElement("img");im.src=URL.createObjectURL(await r.blob());im.style.cssText="width:86px;height:86px;object-fit:cover;border-radius:8px";$("nasT"+i).appendChild(im);}catch(e){}});});
+    if(j.job&&j.job.status==="run")nasPoll();
+  }catch(e){box.innerHTML='<div class="card"><h2>Foto dal NAS</h2><p style="color:var(--wine)">'+esc(e.message)+'</p></div>';}}
+async function nasImport(){var days=[].slice.call(document.querySelectorAll(".nasD")).filter(function(c){return c.checked;}).map(function(c){return c.value;});if(!days.length)return alert("Scegli almeno una giornata");
+  if(!confirm("Porto nell'album del viaggio le foto di "+days.length+" giornate? Le vedranno tutti i partecipanti."))return;
+  try{await api("/api/trips/"+NAS.slug+"/nas",{method:"POST",body:{days:days}});nasPoll();}catch(e){alert(e.message);}}
+async function nasPoll(){var b=$("nasGo");if(b)b.disabled=true;for(var i=0;i<900;i++){var j;try{j=await api("/api/trips/"+NAS.slug+"/nas/job");}catch(e){break;}if(!$("nasJob"))return;$("nasJob").textContent=j.status==="run"?(j.msg+" "+j.done+" di "+j.total):j.msg||"";if(j.status!=="run")break;await new Promise(function(z){setTimeout(z,3000);});}if(b)b.disabled=false;}
+var ARC=[], IMP=[], impRun=false;
+function impShow(){var n={wait:"in attesa",run:"in corso",done:"pubblicato",skip:"già in archivio",err:"non riuscito"};
+  $("impLog").innerHTML=IMP.map(function(t,i){return '<div class="kv" style="display:block"><b style="display:block">'+esc(t.folder)+(t.title?' · '+esc(t.title):'')+'</b><span><span class="pill '+(t.st==="done"?"g":t.st==="err"?"r":"")+'">'+n[t.st]+'</span>'+esc(t.msg||"")+'</span>'+(t.url?' <a href="'+esc(t.url)+'" target="_blank" rel="noopener">apri</a>':'')+(t.st==="err"&&!impRun?' <button class="btn sec" onclick="impRetry('+i+')">Riprova</button>':'')+'</div>';}).join("");}
+async function impOne(t,people,pass){t.st="run";t.msg="avvio…";impShow();
+  try{var r=await api("/api/import",{method:"POST",body:{folder:t.folder,year:t.year,name:t.name,notes:t.notes,files:t.files,people:people,familyPass:pass}}),j;
+    for(var k=0;k<400;k++){await new Promise(function(z){setTimeout(z,4000);});try{j=await api("/api/jobs/"+r.id);}catch(e){if(/Lavoro non trovato/.test(e.message))throw new Error("la madre si è riavviata durante la generazione");continue;}
+      t.msg=(j.log||[]).slice(-1)[0]||"";t.title=j.title||t.title;impShow();if(j.status==="done"||j.status==="error"||(j.status==="preview"&&j.error))break;}
+    if(!j||j.status!=="done")throw new Error((j&&j.error)||"tempo scaduto");
+    t.st=j.skipped?"skip":"done";t.url=j.url||"";t.msg=j.skipped?"":(j.days+" giorni, "+j.stops+" tappe"+(j.warn?". "+j.warn:""));
+  }catch(e){t.st="err";t.msg=e.message;}
+  impShow();}
+async function impStart(){if(impRun)return;var f=$("impFile").files[0],people=$("impPeople").value.split(",").map(function(x){return x.trim();}).filter(Boolean),pass=$("impPass").value.replace(/[^A-Za-z0-9]/g,"");
+  if(!f)return alert("Scegli il pacchetto dei viaggi");if(!people.length)return alert("Indica almeno un viaggiatore");if(pass.length<8)return alert("La password della famiglia deve avere almeno 8 lettere o cifre");
+  var pk;try{pk=JSON.parse(await f.text());}catch(e){return alert("Il file non è un pacchetto valido");}
+  if(!pk||!Array.isArray(pk.trips)||!pk.trips.length)return alert("Il pacchetto non contiene viaggi");
+  if(!confirm("Genero e pubblico "+pk.trips.length+" siti: un repository GitHub e un sito Render per ciascuno, con chiamate a Claude a pagamento. Procedo?"))return;
+  IMP=pk.trips.map(function(t){return Object.assign({st:"wait",msg:""},t);});impRun=true;$("impBtn").disabled=true;$("impBtn").textContent="Importazione in corso…";impShow();
+  for(var i=0;i<IMP.length;i++)await impOne(IMP[i],people,pass);
+  impRun=false;$("impBtn").disabled=false;$("impBtn").textContent="Genera e pubblica i siti";impShow();archive();
+  var ok=IMP.filter(function(t){return t.st==="done";}).length,ko=IMP.filter(function(t){return t.st==="err";}).length;alert("Importazione finita: "+ok+" pubblicati, "+ko+" non riusciti. Utente per tutti i siti: famiglia. Password: quella che hai scelto.");}
+async function impRetry(i){if(impRun)return;var people=$("impPeople").value.split(",").map(function(x){return x.trim();}).filter(Boolean),pass=$("impPass").value.replace(/[^A-Za-z0-9]/g,"");if(pass.length<8)return alert("Reinserisci la password della famiglia");impRun=true;await impOne(IMP[i],people,pass);impRun=false;impShow();archive();}
 async function mailLoad(j){try{j=j||await api("/api/mail");if(!ARC.length)try{ARC=(await api("/api/trips")).trips||[];}catch(e){}
     $("mlInfo").textContent=j.on?"Casella "+j.user+": la madre la legge ogni 5 minuti quando è sveglia e a ogni apertura di una webapp di viaggio. Claude assegna ogni messaggio al viaggio delle date corrispondenti e lo deposita tra i documenti del gruppo; il programma si aggiorna alla prima apertura dell'app."+(j.error?" Ultimo errore: "+j.error:"")+(j.last?" Ultima lettura: "+new Date(j.last).toLocaleString("it-IT")+".":""):"Casella non configurata: servono GMAIL_USER e GMAIL_APP_PASSWORD (password per le app di Google) tra le variabili di Render.";
     $("mlBtn").style.display=j.on?"":"none";
