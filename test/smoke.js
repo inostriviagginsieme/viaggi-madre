@@ -100,6 +100,7 @@ await A.click('#nav button[data-t="s-viaggio"]'); await A.click('#vChips .chip >
       ok(md && md.read === 1 && md.n === nw + 1, 'posta: un solo telefono legge il documento e aggiorna il programma per tutti');
       ok(md && md.todo.indexOf('1') >= 0 && await A.evaluate(() => keys('wlog.').some(k => (KV[k].v.todos || []).length === 1)), 'lettura: il promemoria da prenotare corrispondente viene chiuso');
       r = await fetch(B + '/api/mail', { headers: H }); const ms = await r.json(); ok(ms.on === false && ms.log.length === 2, 'posta: registro dei messaggi visibile dalla madre');
+      const un = ms.log.find(x => !x.docs); r = await fetch(B + '/api/mail/ignore', { method: 'POST', headers: H, body: JSON.stringify({ uid: 0, at: un.at, on: true }) }); const ms2 = await (await fetch(B + '/api/mail', { headers: H })).json(); ok(r.ok && un.ignored === false && ms2.log.find(x => x.at === un.at).ignored === true && ms2.log.find(x => x.docs).ignored === false, 'posta: un messaggio non assegnato si può ignorare');
       await A.evaluate(() => closeSheet()); }
     await A.click('#nav button[data-t="s-foto"]'); await sleep(3600);
     await A.click('#pdfBtn'); await sleep(3500); const pm = await A.evaluate(() => g('bookpdf')); ok(pm && pm.pages >= 24 && pm.pages % 2 === 0 && pm.photos === 1, 'fotolibro impaginato: ' + (pm && pm.pages) + ' pagine, ' + (pm && pm.photos) + ' foto');
