@@ -31,6 +31,20 @@ app.get('/api/config', admin, (req, res) => res.json({
   peecho: peecho.hasPeecho(), peechoEnv: peecho.ENV(), github: gh.hasGitHub(), owner: gh.OWNER() || '', render: rnd.hasRender(), url: publicUrl(req)
 }));
 
+// ---- prova dei collegamenti: una chiamata minima a ogni servizio, per scoprire un problema in dieci secondi e non a metà generazione ----
+app.post('/api/selftest', admin, async (req, res) => {
+  const out = {}, run = async (k, on, fn) => { if (!on) { out[k] = { ok: null, msg: 'non configurato' }; return; } try { out[k] = { ok: true, msg: await fn() }; } catch (e) { out[k] = { ok: false, msg: String(e.message || e).slice(0, 300) }; } };
+  const get = async (url, headers) => { const r = await fetch(url, { headers, signal: AbortSignal.timeout(20000) }); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(r.status + ' ' + ((j.error && (j.error.message || j.error)) || j.message || j.error_message || '')); return j; };
+  await Promise.all([
+    run('claude', ai.hasClaude(), async () => { const o = await ai.selfTest(); return 'modello ' + ai.MODEL() + ', risposta ricevuta (' + o.citta + '), consegna in modalità ' + ai.outMode(); }),
+    run('gemini', gem.hasGemini(), async () => { const j = await get('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { 'x-goog-api-key': process.env.GEMINI_API_KEY }); const names = (j.models || []).map(m => String(m.name).replace('models/', '')); if (!names.includes(gem.MODEL())) throw new Error('chiave valida, ma il modello ' + gem.MODEL() + ' non è tra quelli disponibili. Modelli immagine disponibili: ' + (names.filter(n => /image/.test(n)).join(', ') || 'nessuno')); return 'chiave valida, modello ' + gem.MODEL() + ' disponibile (la generazione di un\'immagine non è provata qui)'; }),
+    run('google', !!process.env.GOOGLE_MAPS_KEY, async () => { const j = await get('https://maps.googleapis.com/maps/api/geocode/json?address=Firenze&key=' + process.env.GOOGLE_MAPS_KEY); if (j.status !== 'OK') throw new Error(j.status + ' ' + (j.error_message || '')); return 'Geocoding attivo (Routes si prova con un viaggio in auto)'; }),
+    run('github', gh.hasGitHub(), async () => { const j = await get('https://api.github.com/user', { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, 'user-agent': 'viaggi-madre' }); return 'token valido, utente ' + j.login + (j.login.toLowerCase() === gh.OWNER().toLowerCase() ? '' : ' (GITHUB_OWNER è ' + gh.OWNER() + ': deve essere un\'organizzazione di cui fai parte)'); }),
+    run('render', rnd.hasRender(), async () => { const j = await get('https://api.render.com/v1/owners?limit=5', { authorization: 'Bearer ' + process.env.RENDER_API_KEY }); const o = (j[0] && (j[0].owner || j[0])) || {}; if (!o.id) throw new Error('nessun workspace'); return 'chiave valida, workspace ' + (o.name || o.id); })
+  ]);
+  res.json(out);
+});
+
 // ---- generazione: anteprima prima, pubblicazione poi ----
 app.post('/api/trips', admin, express.json({ limit: '40mb' }), (req, res) => {
   const id = crypto.randomBytes(8).toString('hex'), job = { id, status: 'run', log: [], created: Date.now() };

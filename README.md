@@ -1,6 +1,6 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 1.4 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 1.5 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
@@ -82,7 +82,9 @@ Limiti da conoscere. L'icona dell'app, cioè il logo con le caricature, e le fot
 
 ## Affidabilità della generazione
 
-Claude consegna ogni risultato come argomento di uno strumento, non come testo: l'API restituisce un oggetto già interpretato e sparisce l'errore di JSON malformato visto al primo viaggio reale (15/11/2026). Ogni chiamata ha tre tentativi, il secondo e il terzo con testi più brevi. Il programma si genera una giornata per chiamata: se una giornata fallisce le altre restano, la giornata resta vuota e il registro lo segnala. Con `CLAUDE_WEB_SEARCH=true` lo strumento non si può imporre e si torna al testo, quindi quella modalità è meno affidabile.
+Claude è invitato a consegnare ogni risultato come argomento di uno strumento, che l'API restituisce già interpretato. L'obbligo di usare lo strumento non è ammesso da tutti i modelli (errore 400 del 15/11/2026 con `claude-sonnet-5-5`), quindi è un invito: se il modello rifiuta gli strumenti la madre passa al testo e lo ricorda. Il testo malformato, per esempio per una virgoletta non protetta, viene riparato prima di essere letto. Ogni chiamata ha tre tentativi, il secondo e il terzo con testi più brevi. Il programma si genera una giornata per chiamata: se una fallisce le altre restano e il registro lo segnala.
+
+In Impostazioni, il pulsante Prova i collegamenti fa una chiamata minima a Claude, Gemini, Google, GitHub e Render e dice per ciascuno se funziona. Va premuto dopo ogni aggiornamento, prima di generare un viaggio.
 
 ## Collaudo
 

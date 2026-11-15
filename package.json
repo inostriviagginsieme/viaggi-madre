@@ -16,6 +16,7 @@
     "@fontsource/big-shoulders-display": "^5.3.0",
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "express": "^4.21.2",
+    "jsonrepair": "^3.15.0",
     "leaflet": "^1.9.4",
     "pdfkit": "^0.20.2",
     "sharp": "^0.33.5"
