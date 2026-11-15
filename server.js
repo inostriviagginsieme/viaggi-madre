@@ -28,7 +28,7 @@ app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
 
 app.get('/api/config', admin, (req, res) => res.json({
   pin: !!process.env.ADMIN_PIN, claude: ai.hasClaude(), claudeModel: ai.MODEL(), gemini: gem.hasGemini(), geminiModel: gem.MODEL(), google: !!process.env.GOOGLE_MAPS_KEY,
-  peecho: peecho.hasPeecho(), peechoEnv: peecho.ENV(), github: gh.hasGitHub(), owner: gh.OWNER() || '', render: rnd.hasRender(), url: publicUrl(req)
+  peecho: peecho.hasPeecho(), peechoEnv: peecho.ENV(), github: gh.hasGitHub(), owner: gh.OWNER() || '', render: rnd.hasRender(), url: publicUrl(req), mail: require('./lib/mail').hasMail(), mailUser: process.env.GMAIL_USER || ''
 }));
 
 // ---- prova dei collegamenti: una chiamata minima a ogni servizio, per scoprire un problema in dieci secondi e non a metà generazione ----
@@ -40,6 +40,7 @@ app.post('/api/selftest', admin, async (req, res) => {
     run('gemini', gem.hasGemini(), async () => { const j = await get('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { 'x-goog-api-key': process.env.GEMINI_API_KEY }); const names = (j.models || []).map(m => String(m.name).replace('models/', '')); if (!names.includes(gem.MODEL())) throw new Error('chiave valida, ma il modello ' + gem.MODEL() + ' non è tra quelli disponibili. Modelli immagine disponibili: ' + (names.filter(n => /image/.test(n)).join(', ') || 'nessuno')); return 'chiave valida, modello ' + gem.MODEL() + ' disponibile (la generazione di un\'immagine non è provata qui)'; }),
     run('google', !!process.env.GOOGLE_MAPS_KEY, async () => { const j = await get('https://maps.googleapis.com/maps/api/geocode/json?address=Firenze&key=' + process.env.GOOGLE_MAPS_KEY); if (j.status !== 'OK') throw new Error(j.status + ' ' + (j.error_message || '')); return 'Geocoding attivo (Routes si prova con un viaggio in auto)'; }),
     run('github', gh.hasGitHub(), async () => { const j = await get('https://api.github.com/user', { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, 'user-agent': 'viaggi-madre' }); return 'token valido, utente ' + j.login + (j.login.toLowerCase() === gh.OWNER().toLowerCase() ? '' : ' (GITHUB_OWNER è ' + gh.OWNER() + ': deve essere un\'organizzazione di cui fai parte)'); }),
+    run('posta', require('./lib/mail').hasMail(), () => require('./lib/mail').check()),
     run('render', rnd.hasRender(), async () => { const j = await get('https://api.render.com/v1/owners?limit=5', { authorization: 'Bearer ' + process.env.RENDER_API_KEY }); const o = (j[0] && (j[0].owner || j[0])) || {}; if (!o.id) throw new Error('nessun workspace'); return 'chiave valida, workspace ' + (o.name || o.id); })
   ]);
   res.json(out);
@@ -149,7 +150,7 @@ app.post('/api/trips/:slug/credentials', admin, async (req, res) => {
 
 // ---- dati condivisi e testi del fotolibro: chiamati dalle webapp figlie ----
 const cors = (req, res, next) => { res.set({ 'access-control-allow-origin': '*', 'access-control-allow-headers': 'content-type,x-trip-token', 'access-control-allow-methods': 'GET,POST,PUT,OPTIONS', 'access-control-max-age': '86400' }); if (req.method === 'OPTIONS') return res.sendStatus(204); next(); };
-const trip = async (req, res, next) => { try { const t = await sync.auth(req.params.slug, req.get('x-trip-token')); if (!t) return res.status(401).json({ error: 'Accesso non valido: entra di nuovo con le tue credenziali' }); req.trip = t; next(); } catch (e) { res.status(502).json({ error: e.message }); } };
+const trip = async (req, res, next) => { try { mailTick(); } catch (e) {} try { const t = await sync.auth(req.params.slug, req.get('x-trip-token')); if (!t) return res.status(401).json({ error: 'Accesso non valido: entra di nuovo con le tue credenziali' }); req.trip = t; next(); } catch (e) { res.status(502).json({ error: e.message }); } };
 app.use(['/api/sync', '/api/book'], cors);
 app.post('/api/sync/:slug', express.json({ limit: '2mb' }), trip, async (req, res) => { try { res.json(await sync.merge(req.params.slug, req.trip, +req.body.since || 0, req.body.changes)); } catch (e) { res.status(502).json({ error: e.message }); } });
 app.put('/api/sync/:slug/photo/:id', express.raw({ type: 'image/jpeg', limit: '6mb' }), trip, async (req, res) => {
@@ -168,6 +169,18 @@ app.put('/api/sync/:slug/doc/:id', express.raw({ type: 'application/octet-stream
 app.get('/api/sync/:slug/doc/:id', trip, async (req, res) => {
   if (!sync.okId(req.params.id)) return res.status(400).end();
   try { const b = await sync.getDoc(req.params.slug, req.params.id); if (!b) return res.status(404).end(); res.set({ 'content-type': 'application/octet-stream', 'cache-control': 'private, max-age=31536000' }).send(b); } catch (e) { res.status(502).end(); }
+});
+// ---- posta dei viaggi ----
+const mail = require('./lib/mail');
+const keyOf = async slug => { try { const job = [...jobs.values()].find(j => j.slug === slug && j.files), f = job && job.files.find(x => x.path === 'pwa/auth.json'); const a = gh.hasGitHub() ? await gh.getFile(slug, 'pwa/auth.json', 'main') : f ? Buffer.from(f.data) : null; return a ? creds.tripKey(JSON.parse(a.toString())) : null; } catch (e) { return null; } };
+const mailTick = () => { if (mail.hasMail() && Date.now() - mail.lastPoll() > 120000) mail.poll(keyOf).catch(() => {}); };
+if (mail.hasMail()) { setTimeout(mailTick, 8000); setInterval(mailTick, 5 * 60000); }
+app.get('/api/mail', admin, async (req, res) => { try { res.json(await mail.status()); } catch (e) { res.status(502).json({ error: e.message }); } });
+app.post('/api/mail/poll', admin, async (req, res) => { const r = await mail.poll(keyOf); if (!r.ok) return res.status(502).json({ error: r.error }); res.json(Object.assign(r, await mail.status())); });
+app.post('/api/mail/assign', admin, express.json({ limit: '10kb' }), async (req, res) => { try { res.json(await mail.assign(parseInt(req.body.uid, 10), String(req.body.slug || ''), keyOf)); } catch (e) { res.status(502).json({ error: e.message }); } });
+app.post('/api/mail/ingest', admin, express.json({ limit: '20mb' }), async (req, res) => {
+  try { const b = req.body || {}; res.json(await mail.ingest({ uid: 0, from: S_(b.from, 160), subject: S_(b.subject, 200), date: new Date().toISOString(), text: String(b.text || '').slice(0, 20000), slug: b.slug ? S_(b.slug, 40) : '',
+    att: (b.attachments || []).slice(0, 4).map(a => { const m = /^data:(application\/pdf|image\/(?:jpeg|png|webp));base64,/.exec(String(a.data || '')); return m ? { name: S_(a.name, 80) || 'allegato', type: m[1], data: Buffer.from(a.data.slice(a.data.indexOf(',') + 1), 'base64') } : null; }).filter(Boolean) }, keyOf)); } catch (e) { res.status(502).json({ error: e.message }); }
 });
 const bookCount = new Map();
 app.post('/api/book/:slug', express.json({ limit: '1mb' }), trip, async (req, res) => {
@@ -195,7 +208,8 @@ app.post('/api/wallet/:slug/read', express.json({ limit: '14mb' }), trip, async 
     if (!m) return res.status(400).json({ error: 'Documento non leggibile: servono PDF o immagini' });
     const c = b.ctx || {}, ctx = { dest: S_(c.dest, 80), start: S_(c.start, 10), end: S_(c.end, 10), people: (c.people || []).slice(0, 12).map(x => S_(x, 40)),
       days: (c.days || []).slice(0, 21).map(x => ({ date: S_(x.date, 10), title: S_(x.title, 140), stops: (x.stops || []).slice(0, 20).map(y => ({ at: S_(y.at, 5), n: S_(y.n, 120), kind: S_(y.kind, 4) })) })),
-      gaps: (c.gaps || []).slice(0, 12).map(x => ({ i: parseInt(x.i, 10) || 0, kind: S_(x.kind, 14), t: S_(x.t, 140), date: S_(x.date, 10), dateEnd: S_(x.dateEnd, 10) })) };
+      gaps: (c.gaps || []).slice(0, 12).map(x => ({ i: parseInt(x.i, 10) || 0, kind: S_(x.kind, 14), t: S_(x.t, 140), date: S_(x.date, 10), dateEnd: S_(x.dateEnd, 10) })),
+      todo: (c.todo || []).slice(0, 30).map(x => ({ id: S_(x.id, 12), t: S_(x.t, 160), d: S_(x.d, 240) })).filter(x => x.id) };
     if (!isDate(ctx.start) || !isDate(ctx.end) || !ctx.days.length) return res.status(400).json({ error: 'Contesto del viaggio mancante' });
     const file = { name: S_(b.name, 80) || 'documento', type: m[1], b64: d.slice(d.indexOf(',') + 1) };
     const r = ai.hasClaude() ? await ai.genWallet(ctx, file) : demo.wallet(ctx, file);
@@ -208,7 +222,7 @@ app.post('/api/wallet/:slug/read', express.json({ limit: '14mb' }), trip, async 
       items.forEach(it => { if (it.lat == null && lod.lat != null && /check|hotel|alloggio/i.test(it.n + ' ' + it.sub)) { it.lat = lod.lat; it.lon = lod.lon; } });
     }
     const B = r.booking || {}, bk = (S_(B.from, 80) || S_(B.to, 80)) && isDate(B.date) ? { doc: 0, kind: S_(B.kind, 12) || 'altro', dir: 'interno', from: S_(B.from, 80), fromCode: S_(B.fromCode, 3).toUpperCase(), to: S_(B.to, 80), toCode: S_(B.toCode, 3).toUpperCase(), date: B.date, dep: HM(B.dep), arrDate: isDate(B.arrDate) ? B.arrDate : '', arr: HM(B.arr), carrier: S_(B.carrier, 60), number: S_(B.number, 20), pnr: S_(B.pnr, 24), passengers: (B.passengers || []).slice(0, 12).map(x => S_(x, 60)), seats: S_(B.seats, 200), notes: S_(B.notes, 400) } : null;
-    res.json({ relevant: r.relevant !== false && (items.length > 0 || !!lod || !!bk), summary: S_(r.summary, 300), items, lodging: lod, booking: bk, gapsDone: (r.gapsDone || []).slice(0, 12).map(x => parseInt(x, 10)).filter(x => x >= 0 && x < 12), warnings: (r.warnings || []).slice(0, 6).map(x => S_(x, 300)) });
+    res.json({ relevant: r.relevant !== false && (items.length > 0 || !!lod || !!bk), summary: S_(r.summary, 300), items, lodging: lod, booking: bk, gapsDone: (r.gapsDone || []).slice(0, 12).map(x => parseInt(x, 10)).filter(x => x >= 0 && x < 12), todoDone: (Array.isArray(r.todoDone) ? r.todoDone : []).map(x => S_(x, 12)).filter(x => ctx.todo.some(t => t.id === x)), warnings: (r.warnings || []).slice(0, 6).map(x => S_(x, 300)) });
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 

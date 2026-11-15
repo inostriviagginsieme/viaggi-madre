@@ -33,3 +33,7 @@ services:
         sync: false
       - key: PEECHO_ENV
         value: test
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false

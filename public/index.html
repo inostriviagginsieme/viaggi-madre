@@ -109,6 +109,7 @@ iframe{width:100%;height:640px;border:1px solid var(--line);border-radius:16px;b
 <label>Destinazione</label><input id="mDest"><label>Partecipanti, separati da virgola</label><input id="mPeople"><label>Indirizzo della webapp</label><input id="mUrl" placeholder="https://...">
 <button class="btn sec full" style="margin-top:12px" onclick="addManual()">Aggiungi all'archivio</button></div></section>
 <section id="t-cfg" class="hide"><div class="card"><h2>Collegamenti</h2><div id="cfg"></div><button class="btn full" style="margin-top:12px" id="stBtn" onclick="selftest()">Prova i collegamenti adesso</button><p class="muted" style="margin:8px 0 0">Una chiamata minima a ogni servizio, pochi secondi e pochi centesimi. Da fare dopo ogni aggiornamento, prima di generare un viaggio.</p><div id="stOut"></div></div>
+<div class="card"><h2>Posta dei viaggi</h2><p class="muted" id="mlInfo"></p><button class="btn full" id="mlBtn" onclick="mailPoll()">Leggi la posta adesso</button><div id="mlLog" style="margin-top:10px"></div></div>
 <div class="card"><h2>Cosa serve</h2><p class="muted">Le chiavi si inseriscono su Render, nelle variabili d'ambiente di questo servizio. L'elenco completo e i passaggi sono nel README del repository.</p></div></section>
 </div>
 </main>
@@ -125,7 +126,7 @@ function gate(){$("gate").classList.remove("hide");$("appBox").classList.add("hi
 async function login(){PIN=$("pin").value;try{await start();sessionStorage.setItem("pin",PIN);}catch(e){$("gateErr").textContent=e.message;}}
 async function start(){CFG=await api("/api/config");$("gate").classList.add("hide");$("appBox").classList.remove("hide");cfg();people();}
 function tab(t){["new","arc","cfg"].forEach(function(x){$("t-"+x).classList.toggle("hide",x!==t);});
-  document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("on",b.dataset.t===t);});if(t==="arc")archive();}
+  document.querySelectorAll(".tab").forEach(function(b){b.classList.toggle("on",b.dataset.t===t);});if(t==="arc")archive();if(t==="cfg")mailLoad();}
 function mode(m){MODE=m;document.querySelectorAll("#modeSeg button").forEach(function(b){b.classList.toggle("on",b.dataset.m===m);});}
 function people(){
   var n=Math.max(1,Math.min(12,parseInt($("npeople").value,10)||1)),box=$("ppl"),old=[].map.call(box.querySelectorAll("input[type=text]"),function(i){return i.value;}),h="";
@@ -248,8 +249,19 @@ async function updApp(slug){if(!confirm("Porto la webapp di questo viaggio all'u
   try{var j=await api("/api/trips/"+slug+"/update",{method:"POST"});alert("Aggiornata alla versione "+j.version+". Tra uno o due minuti, sui telefoni: Altro, Aggiorna.");}catch(e){alert("Aggiornamento non riuscito: "+e.message);}}
 async function getZip(slug){try{var r=await fetch("/api/trips/"+slug+"/zip",{headers:{"x-admin-pin":PIN}});if(!r.ok)throw new Error("Copia del sito non presente");var u=URL.createObjectURL(await r.blob()),a=document.createElement("a");a.href=u;a.download=slug+".zip";document.body.appendChild(a);a.click();a.remove();}catch(e){alert(e.message);}}
 async function addManual(){try{await api("/api/trips/manual",{method:"POST",body:{slug:$("mSlug").value,title:$("mTitle").value,start:$("mStart").value,end:$("mEnd").value,dest:$("mDest").value,people:$("mPeople").value,url:$("mUrl").value,dateLabel:$("mStart").value&&$("mEnd").value?$("mStart").value.split("-").reverse().join("/")+" → "+$("mEnd").value.split("-").reverse().join("/"):""}});["mSlug","mTitle","mStart","mEnd","mDest","mPeople","mUrl"].forEach(function(i){$(i).value="";});archive();window.scrollTo(0,0);}catch(e){alert(e.message);}}
+var ARC=[];
+async function mailLoad(j){try{j=j||await api("/api/mail");if(!ARC.length)try{ARC=(await api("/api/trips")).trips||[];}catch(e){}
+    $("mlInfo").textContent=j.on?"Casella "+j.user+": la madre la legge ogni 5 minuti quando è sveglia e a ogni apertura di una webapp di viaggio. Claude assegna ogni messaggio al viaggio delle date corrispondenti e lo deposita tra i documenti del gruppo; il programma si aggiorna alla prima apertura dell'app."+(j.error?" Ultimo errore: "+j.error:"")+(j.last?" Ultima lettura: "+new Date(j.last).toLocaleString("it-IT")+".":""):"Casella non configurata: servono GMAIL_USER e GMAIL_APP_PASSWORD (password per le app di Google) tra le variabili di Render.";
+    $("mlBtn").style.display=j.on?"":"none";
+    var op=ARC.filter(function(t){return t.generated;}).map(function(t){return '<option value="'+esc(t.slug)+'">'+esc(t.title)+'</option>';}).join("");
+    $("mlLog").innerHTML=(j.log||[]).map(function(r){var t=ARC.filter(function(x){return x.slug===r.slug;})[0];
+      return '<div class="kv" style="display:block"><b style="display:block">'+esc(r.subject||"(senza oggetto)")+'</b><span class="muted" style="display:block">'+esc((r.from||"")+" · "+String(r.date||"").slice(0,10))+'</span><span style="display:block;margin:3px 0"><span class="pill '+(r.error?"r":r.docs?"g":"")+'">'+(r.error?"errore":r.docs?esc(t?t.title:r.slug):"non assegnato")+'</span>'+esc(r.summary||"")+'</span><span class="muted" style="display:block">'+esc(r.note||"")+'</span>'+
+        (!r.docs&&r.uid&&op?'<span style="display:flex;gap:6px;margin-top:6px"><select id="ma'+r.uid+'">'+op+'</select><button class="btn sec" onclick="mailAssign('+r.uid+')">Assegna a questo viaggio</button></span>':'')+'</div>';}).join("")||(j.on?'<p class="muted">Nessun messaggio letto finora.</p>':'');
+  }catch(e){$("mlInfo").textContent=e.message;}}
+async function mailPoll(){var b=$("mlBtn");b.disabled=true;b.textContent="Leggo la posta…";try{mailLoad(await api("/api/mail/poll",{method:"POST"}));}catch(e){alert("Lettura non riuscita: "+e.message);}b.disabled=false;b.textContent="Leggi la posta adesso";}
+async function mailAssign(uid){try{await api("/api/mail/assign",{method:"POST",body:{uid:uid,slug:$("ma"+uid).value}});mailLoad();}catch(e){alert(e.message);}}
 async function selftest(){var b=$("stBtn");b.disabled=true;b.textContent="Provo…";$("stOut").innerHTML="";
-  try{var j=await api("/api/selftest",{method:"POST"}),n={claude:"Claude",gemini:"Gemini immagini",google:"Google Maps",github:"GitHub",render:"Render"};
+  try{var j=await api("/api/selftest",{method:"POST"}),n={claude:"Claude",gemini:"Gemini immagini",google:"Google Maps",github:"GitHub",render:"Render",posta:"Posta dei viaggi"};
     $("stOut").innerHTML=Object.keys(n).map(function(k){var r=j[k]||{};return '<div class="kv"><b>'+n[k]+'</b><span><span class="pill '+(r.ok===true?"g":r.ok===false?"r":"")+'">'+(r.ok===true?"funziona":r.ok===false?"ERRORE":"spento")+'</span>'+esc(r.msg||"")+'</span></div>';}).join("");
   }catch(e){$("stOut").innerHTML='<p style="color:var(--wine)">'+esc(e.message)+'</p>';}
   b.disabled=false;b.textContent="Prova i collegamenti adesso";}

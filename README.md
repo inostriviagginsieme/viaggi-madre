@@ -1,6 +1,6 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 1.8.1 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 1.9 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
@@ -27,6 +27,16 @@ I documenti aggiunti da un telefono non restano più su quel telefono. La scheda
 ## Aggiornare una figlia già pubblicata (v1.8.1)
 
 Le figlie sono siti a sé: una modifica alla madre non le cambia da sola. In Archivio, sul viaggio, il pulsante Aggiorna l'app sostituisce nel repository del viaggio solo il codice (`pwa/index.html`, `pwa/app.js`, `pwa/sw.js`). Programma cifrato, credenziali, immagini e dati del gruppo (spese, foto, diario, documenti) non vengono toccati e Claude non viene chiamato. Render ripubblica il sito in uno o due minuti; sui telefoni: Altro, Aggiorna. Le funzioni che dipendono da contenuti generati (per esempio le Altre mete) richiedono comunque un viaggio generato con la versione nuova.
+
+## Lettura dei documenti e posta dei viaggi (v1.9)
+
+Lettura automatica. Ogni documento del gruppo non ancora letto viene letto una volta, senza che nessuno prema nulla: vale anche per i documenti aggiunti prima che la lettura esistesse. Accanto a un documento non letto c'è il pulsante Leggi. La lettura chiude anche i promemoria della lista Da prenotare che il documento soddisfa (per esempio «prenotare l'hotel per le notti dell'11 e 12» quando arriva la conferma di quell'hotel); Annulla li riapre. Verificato il 15/11/2026 sul viaggio vero con la conferma Booking: Claude ha letto in 21 secondi, ha sostituito le due tappe generiche di check-in e check-out e ha segnalato l'assenza di parcheggio.
+
+Posta dei viaggi. La madre legge la casella indicata in `GMAIL_USER` (IMAP di Gmail, con una password per le app in `GMAIL_APP_PASSWORD`: richiede la verifica in due passaggi sull'account Google). Per ogni messaggio nuovo Claude decide a quale viaggio appartiene confrontando le date del servizio con i periodi dei viaggi in archivio (tolleranza di un giorno), poi la madre deposita tra i documenti del gruppo di quel viaggio gli allegati PDF o immagine e, quando il testo contiene dati utili, il messaggio stesso impaginato in PDF. I file sono cifrati con la chiave del viaggio, che la madre recupera con ADMIN_PIN o CRED_SECRET. Alla prima apertura dell'app un solo telefono legge il documento e aggiorna il programma per tutti. In Impostazioni, Posta dei viaggi: stato, Leggi la posta adesso, registro dei messaggi e assegnazione a mano di quelli rimasti senza viaggio.
+
+Quando legge. Ogni 5 minuti finché la madre è sveglia, all'avvio e a ogni sincronizzazione di una figlia. Sul piano gratuito di Render la madre dorme dopo 15 minuti senza traffico: in quel caso la posta viene letta appena qualcuno apre una webapp di viaggio o la madre. Per una lettura davvero continua serve il piano a pagamento. Alla prima lettura la madre prende i messaggi degli ultimi 60 giorni, 8 per volta. La casella non viene modificata: nessun messaggio è segnato come letto, spostato o cancellato.
+
+Limiti. La lettura IMAP reale non è collaudata dai test automatici (dall'ambiente di sviluppo Gmail non è raggiungibile): il percorso collaudato parte dal messaggio già scaricato. Chiunque conosca l'indirizzo può scrivere alla casella e far entrare un documento in un viaggio: ogni modifica resta visibile tra i documenti, con Annulla. I viaggi nati fuori dalla madre non ricevono posta.
 
 ## Altre mete (v1.7)
 
@@ -120,7 +130,7 @@ In Impostazioni, il pulsante Prova i collegamenti fa una chiamata minima a Claud
 
 ## Collaudo
 
-`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (59 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
+`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (66 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
 
 ## Struttura
 

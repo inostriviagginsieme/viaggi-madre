@@ -588,9 +588,24 @@ function dl(blob,name){var u=URL.createObjectURL(blob),a=document.createElement(
 /* ============ WALLET (solo su questo telefono) ============ */
 /* Documenti del gruppo: la scheda di ogni documento viaggia con i dati condivisi (chiave doc.<id>), il file viene cifrato sul telefono con la chiave del viaggio e depositato nella madre. */
 async function loadDocs(){var arr=await dbAll("d");var old=LD;LD={};arr.forEach(function(d){if(old[d.id]&&old[d.id].url)d.url=old[d.id].url;else try{d.url=URL.createObjectURL(d.blob);}catch(e){}LD[d.id]=d;});wd();}
-function wd(){var seen={};WDOCS=keys("doc.").map(function(k){var m=KV[k].v,id=k.slice(4),l=LD[id]||{};seen[id]=1;return {id:id,poi:m.poi||"",name:m.name,type:m.type,ts:m.ts,who:m.who,blob:l.blob,url:l.url,up:l.up};});
+function wd(){var seen={};WDOCS=keys("doc.").map(function(k){var m=KV[k].v,id=k.slice(4),l=LD[id]||{};seen[id]=1;return {id:id,poi:m.poi||"",name:m.name,type:m.type,ts:m.ts,who:m.who,read:m.read||0,claim:m.claim||0,mail:m.mail||"",blob:l.blob,url:l.url,up:l.up};});
   Object.keys(LD).forEach(function(id){if(!seen[id]&&!KV["doc."+id])WDOCS.push(LD[id]);});WDOCS.sort(function(a,b){return a.ts-b.ts;});return WDOCS;}
-function docMeta(d,poi){return {name:d.name,type:d.type,poi:poi==null?(d.poi||""):poi,who:d.who||me().id,ts:d.ts};}
+function docMeta(d,poi,read){var m={name:d.name,type:d.type,poi:poi==null?(d.poi||""):poi,who:d.who||me().id,ts:d.ts,read:read||d.read||0};if(d.mail)m.mail=d.mail;return m;}
+/* Ogni documento del gruppo non ancora letto viene letto una volta, dal telefono di chi l'ha caricato: così anche i documenti aggiunti prima che la lettura esistesse entrano nel programma. */
+var readTried={}, reading=false;
+async function autoRead(){
+  if(reading||!syncOn())return; var now=Date.now();
+  var d=wd().filter(function(x){var free=!x.read||(x.read===3&&now-(x.claim||0)>300000);return x.blob&&free&&!x.poi&&!readTried[x.id]&&(!x.who||x.who===me().id||x.who==="mail");})[0]; if(!d)return;
+  readTried[d.id]=1; reading=true;
+  try{
+    if(d.who==="mail"){ /* arrivato per posta: lo legge un telefono solo, quello che lo prenota per primo */
+      var m=docMeta(d,null,3);m.by=me().id;m.claim=Date.now();put("doc."+d.id,m);await sync();await new Promise(function(r){setTimeout(r,3500);});await sync();
+      var c=g("doc."+d.id,null);if(!c||c.by!==me().id||c.read!==3){reading=false;return;}
+    }
+    await readBooking(d);
+  }catch(e){} reading=false;
+}
+function reread(id){var d=wd().filter(function(x){return x.id===id;})[0];if(!d||!d.blob)return;if(!syncOn())return toast("La lettura richiede il collegamento con la webapp madre");readTried[id]=1;readBooking(d);}
 async function tkey(){if(!TKEY)TKEY=await crypto.subtle.importKey("raw",unhex(AUTH.k),"AES-GCM",false,["encrypt","decrypt"]);return TKEY;}
 async function docSync(){
   var moved=0, base=T.sync.api+"/api/sync/"+T.slug+"/doc/", hd={"x-trip-token":AUTH.tok}, dirty=false;
@@ -609,12 +624,12 @@ async function docSync(){
   return moved+(dirty?1:0);
 }
 function docRow(d){var w=T.people.filter(function(p){return p.id===d.who;})[0], st=!d.blob?"in arrivo dal gruppo":(syncOn()&&!d.up?(d.blob.size>10*1048576?"oltre 10 MB: resta su questo telefono":"in attesa di invio al gruppo"):"");
-  return '<div class="wdoc"><div>'+'<span class="pill">'+(d.type==="application/pdf"?"PDF":"FOTO")+'</span>'+'</div><div class="bd"><b>'+esc(d.name)+'</b><div class="muted small">'+esc([d.poi&&POI[d.poi]?POI[d.poi].n:"Senza tappa",w?"da "+w.name:"",st].filter(Boolean).join(" · "))+'</div></div>'+(d.blob?'<button onclick="openDoc(\''+d.id+'\')">Apri</button>'+(navigator.share?'<button onclick="shareDoc(\''+d.id+'\')">Invia</button>':''):'')+'<button onclick="delDoc(\''+d.id+'\')">×</button></div>';}
+  return '<div class="wdoc"><div>'+'<span class="pill">'+(d.type==="application/pdf"?"PDF":"FOTO")+'</span>'+'</div><div class="bd"><b>'+esc(d.name)+'</b><div class="muted small">'+esc([d.poi&&POI[d.poi]?POI[d.poi].n:"Senza tappa",w?"da "+w.name:(d.who==="mail"?"arrivato per posta"+(d.mail?" da "+d.mail:""):""),d.read===3?"in lettura":"",st].filter(Boolean).join(" · "))+'</div></div>'+(d.blob?'<button onclick="openDoc(\''+d.id+'\')">Apri</button>'+(navigator.share?'<button onclick="shareDoc(\''+d.id+'\')">Invia</button>':'')+(d.read!==1&&syncOn()?'<button onclick="reread(\''+d.id+'\')">Leggi</button>':''):'')+'<button onclick="delDoc(\''+d.id+'\')">×</button></div>';}
 function pickDocFor(poi){var i=$("docIn");i.dataset.poi=poi||"";i.click();}
 async function addDocs(list,poi){var n=0,fresh=[];for(var i=0;i<list.length;i++){var f=list[i],pdf=f.type==="application/pdf"||/\.pdf$/i.test(f.name||""),img=f.type&&f.type.indexOf("image")===0;if((!pdf&&!img)||f.size>25*1048576)continue;
-    try{var blob=img?await shrink(f,2000):f,rec={id:uid("d"),poi:poi||"",name:(f.name||"documento").replace(/\.[^.]+$/,""),type:pdf?"application/pdf":"image/jpeg",blob:blob,ts:Date.now(),who:me().id,up:0};await dbPut(rec,"d");put("doc."+rec.id,docMeta(rec));fresh.push(rec);n++;}catch(e){}}
+    try{var blob=img?await shrink(f,2000):f,rec={id:uid("d"),poi:poi||"",name:(f.name||"documento").replace(/\.[^.]+$/,""),type:pdf?"application/pdf":"image/jpeg",blob:blob,ts:Date.now(),who:me().id,up:0};await dbPut(rec,"d");put("doc."+rec.id,docMeta(rec,null,poi?1:0));fresh.push(rec);n++;}catch(e){}}
   await loadDocs();closeSheet();renderCurrent();toast(n+(n===1?" documento salvato":" documenti salvati")+(syncOn()?": lo ricevono tutti i partecipanti":""));
-  if(!poi&&syncOn())for(var k=0;k<fresh.length;k++)await readBooking(fresh[k]);}
+  if(!poi&&syncOn())for(var k=0;k<fresh.length;k++){readTried[fresh[k].id]=1;await readBooking(fresh[k]);}}
 /* Una prenotazione aggiunta al wallet viene letta da Claude e modifica il programma di tutto il gruppo. */
 function blob64(b){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(String(r.result));};r.onerror=rej;r.readAsDataURL(b);});}
 async function readBooking(d){
@@ -624,10 +639,11 @@ async function readBooking(d){
     var data=(await blob64(d.blob)).replace(/^data:[^;]*;/,"data:"+d.type+";");
     var ctx={dest:T.dest.name,start:T.dates.start,end:T.dates.end,people:T.people.map(function(p){return p.name;}),
       days:DAYS.map(function(D){return {date:D.date,title:D.title,stops:schedule(D).rows.map(function(r){return {at:hhmm(r.st),n:POI[r.id].n,kind:POI[r.id].kind};})};}),
-      gaps:(T.gaps||[]).map(function(x,i){return {i:i,kind:x.kind,t:x.t,date:x.date,dateEnd:x.dateEnd};}).filter(function(x){return !g("gap."+x.i);})};
+      gaps:(T.gaps||[]).map(function(x,i){return {i:i,kind:x.kind,t:x.t,date:x.date,dateEnd:x.dateEnd};}).filter(function(x){return !g("gap."+x.i);}),
+      todo:(T.todo||[]).filter(function(t){return !g("todo."+t.id);}).map(function(t){return {id:t.id,t:t.t,d:t.d||""};})};
     var r=await fetch(T.sync.api+"/api/wallet/"+T.slug+"/read",{method:"POST",headers:{"content-type":"application/json","x-trip-token":AUTH.tok},body:JSON.stringify({name:d.name,data:data,ctx:ctx})}),j=await r.json();
     if(!r.ok)throw new Error(j.error||"errore");
-    if(!j.relevant){toast("Documento salvato. Non contiene una prenotazione da mettere in programma.");return;}
+    if(!j.relevant){put("doc."+d.id,docMeta(d,null,1));toast("Documento salvato. Non contiene una prenotazione da mettere in programma.");renderCurrent();return;}
     applyBooking(j,d);
   }catch(e){toast("Documento salvato, lettura non riuscita: "+e.message);}
 }
@@ -646,8 +662,10 @@ function applyBooking(j,d){
   if(j.booking){put("bk."+wid,j.booking);lines.push("Prenotazione di viaggio aggiunta in Prenotazioni.");}
   var gd=(j.gapsDone||[]).filter(function(i){return (T.gaps||[])[i]&&!g("gap."+i);});
   gd.forEach(function(i){put("gap."+i,1);lines.push("Segnata come prenotata: "+T.gaps[i].t);});
-  put("wlog."+wid,{name:d.name,summary:j.summary,ids:ids,removed:removed,gaps:gd,lines:lines,warn:j.warnings||[],by:me().id,ts:Date.now()});
-  if(ids.length){d.poi=ids[0];put("doc."+d.id,docMeta(d,ids[0]));}
+  var td=(j.todoDone||[]).filter(function(id){return (T.todo||[]).some(function(t){return t.id===id;})&&!g("todo."+id);});
+  td.forEach(function(id){put("todo."+id,1);lines.push("Da prenotare, fatto: "+T.todo.filter(function(t){return t.id===id;})[0].t);});
+  put("wlog."+wid,{name:d.name,doc:d.id,summary:j.summary,ids:ids,removed:removed,gaps:gd,todos:td,lines:lines,warn:j.warnings||[],by:me().id,ts:Date.now()});
+  put("doc."+d.id,docMeta(d,ids.length?ids[0]:null,1));
   renderCurrent();
   openSheet('<div class="grab"></div><h3>Prenotazione letta</h3><div style="font-size:14.5px;margin:8px 0 10px">'+esc(j.summary)+'</div><h4>Modifiche al programma</h4>'+lines.map(function(l){return '<div class="kv"><span>'+esc(l)+'</span></div>';}).join("")+
     (j.warnings||[]).map(function(w){return '<div class="tip"><b>Da controllare</b>'+esc(w)+'</div>';}).join("")+
@@ -656,7 +674,7 @@ function applyBooking(j,d){
 function undoWallet(wid){var L=g("wlog."+wid,null);if(!L)return;var P=plan(),K=parked();
   (L.ids||[]).forEach(function(id){DAYS.forEach(function(D){var i=P[D.id].indexOf(id);if(i>=0)P[D.id].splice(i,1);});var k=K.indexOf(id);if(k>=0)K.splice(k,1);put("poi."+id,null);});
   (L.removed||[]).forEach(function(x){if(POI[x[1]]&&P[x[0]]&&P[x[0]].indexOf(x[1])<0)P[x[0]].splice(Math.min(x[2],P[x[0]].length),0,x[1]);});
-  put("plan",P);put("parked",K);put("lodg."+wid,null);put("bk."+wid,null);(L.gaps||[]).forEach(function(i){put("gap."+i,0);});put("wlog."+wid,null);
+  put("plan",P);put("parked",K);put("lodg."+wid,null);put("bk."+wid,null);(L.gaps||[]).forEach(function(i){put("gap."+i,0);});(L.todos||[]).forEach(function(id){put("todo."+id,0);});put("wlog."+wid,null);
   mergePoi();closeSheet();renderCurrent();toast("Modifiche annullate: il documento resta tra i documenti");}
 function openDoc(id){var d=WDOCS.filter(function(x){return x.id===id;})[0];if(d&&d.url)window.open(d.url,"_blank");}
 async function shareDoc(id){var d=WDOCS.filter(function(x){return x.id===id;})[0];if(!d||!d.blob||!navigator.share)return;try{var f=new File([d.blob],d.name+(d.type==="application/pdf"?".pdf":".jpg"),{type:d.type});if(navigator.canShare&&!navigator.canShare({files:[f]})){toast("Questo telefono non condivide file da qui");return;}await navigator.share({files:[f],title:d.name});}catch(e){}}
@@ -746,7 +764,7 @@ async function sync(manual){
     ks.forEach(function(k){if(KV[k]&&sent[k]&&KV[k].ts<=sent[k].ts)delete S.dirty[k];});
     if(changed)mergePoi();
     S.rev=j.rev;S.last=Date.now();syncState="ok";save();
-    var moved=await photoSync();try{moved+=await docSync();}catch(e){}
+    var moved=await photoSync();try{moved+=await docSync();}catch(e){}setTimeout(autoRead,400);
     if(changed||moved||manual){var a=document.activeElement;if(!a||!/INPUT|TEXTAREA/.test(a.tagName))renderCurrent();}
     if(manual)toast("Sincronizzato");
   }catch(e){syncState=navigator.onLine===false?"off":"";}
