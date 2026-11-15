@@ -1,7 +1,7 @@
 // I nostri viaggi insieme: webapp madre. Genera una webapp figlia per ogni viaggio, la pubblica su GitHub + Render,
 // tiene l'archivio e fa da archivio condiviso (programma, spese, diario, foto) per i telefoni di ogni gruppo.
 const express = require('express'), crypto = require('crypto'), path = require('path');
-const { buildTrip } = require('./lib/build'), { makeZip } = require('./lib/zip');
+const { buildTrip, normItem, str: S_, hhmm: HM, isDate } = require('./lib/build'), geoLib = require('./lib/geo'), { makeZip } = require('./lib/zip');
 const ai = require('./lib/ai'), gem = require('./lib/gemini'), gh = require('./lib/github'), rnd = require('./lib/render'), sync = require('./lib/sync'), demo = require('./lib/demo'), creds = require('./lib/creds'), archive = require('./lib/archive'), peecho = require('./lib/peecho'), { buildBook } = require('./lib/book');
 
 const app = express();
@@ -161,6 +161,35 @@ app.post('/api/book/:slug', express.json({ limit: '1mb' }), trip, async (req, re
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
+// ---- wallet della figlia: una prenotazione aggiunta viene letta da Claude e torna come modifiche al programma ----
+const wCount = new Map();
+app.use('/api/wallet', cors);
+app.post('/api/wallet/:slug/read', express.json({ limit: '14mb' }), trip, async (req, res) => {
+  const slug = req.params.slug, k = slug + ':' + new Date().toISOString().slice(0, 10), n = wCount.get(k) || 0;
+  if (n >= 40) return res.status(429).json({ error: 'Limite giornaliero di letture raggiunto' });
+  wCount.set(k, n + 1);
+  try {
+    const b = req.body || {}, d = String(b.data || ''), m = /^data:(application\/pdf|image\/(?:jpeg|png|webp));base64,/.exec(d);
+    if (!m) return res.status(400).json({ error: 'Documento non leggibile: servono PDF o immagini' });
+    const c = b.ctx || {}, ctx = { dest: S_(c.dest, 80), start: S_(c.start, 10), end: S_(c.end, 10), people: (c.people || []).slice(0, 12).map(x => S_(x, 40)),
+      days: (c.days || []).slice(0, 21).map(x => ({ date: S_(x.date, 10), title: S_(x.title, 140), stops: (x.stops || []).slice(0, 20).map(y => ({ at: S_(y.at, 5), n: S_(y.n, 120), kind: S_(y.kind, 4) })) })),
+      gaps: (c.gaps || []).slice(0, 12).map(x => ({ i: parseInt(x.i, 10) || 0, kind: S_(x.kind, 14), t: S_(x.t, 140), date: S_(x.date, 10), dateEnd: S_(x.dateEnd, 10) })) };
+    if (!isDate(ctx.start) || !isDate(ctx.end) || !ctx.days.length) return res.status(400).json({ error: 'Contesto del viaggio mancante' });
+    const file = { name: S_(b.name, 80) || 'documento', type: m[1], b64: d.slice(d.indexOf(',') + 1) };
+    const r = ai.hasClaude() ? await ai.genWallet(ctx, file) : demo.wallet(ctx, file);
+    const dates = new Set(ctx.days.map(x => x.date)), num = v => { const f = parseFloat(v); return isFinite(f) && f !== 0 ? f : null; };
+    const items = (r.items || []).slice(0, 8).filter(x => dates.has(S_(x.date, 10)) && HM(x.at)).map(x => Object.assign(normItem(x, '', {}), { date: S_(x.date, 10), replaces: S_(x.replaces, 120) }));
+    let lod = null; const L = r.lodging || {};
+    if (S_(L.name, 80) && isDate(L.checkinDate) && isDate(L.checkoutDate)) {
+      lod = { n: S_(L.name, 80), addr: S_(L.address, 160), lat: num(L.lat), lon: num(L.lon), from: L.checkinDate, to: L.checkoutDate, checkin: HM(L.checkinTime), checkout: HM(L.checkoutTime), pnr: S_(L.pnr, 24), note: S_(L.notes, 400) };
+      if (lod.lat == null || lod.lon == null) { const g = await geoLib.googleGeocode([lod.n, lod.addr].filter(Boolean).join(', ')); if (g) { lod.lat = g.lat; lod.lon = g.lon; } }
+      items.forEach(it => { if (it.lat == null && lod.lat != null && /check|hotel|alloggio/i.test(it.n + ' ' + it.sub)) { it.lat = lod.lat; it.lon = lod.lon; } });
+    }
+    const B = r.booking || {}, bk = (S_(B.from, 80) || S_(B.to, 80)) && isDate(B.date) ? { doc: 0, kind: S_(B.kind, 12) || 'altro', dir: 'interno', from: S_(B.from, 80), fromCode: S_(B.fromCode, 3).toUpperCase(), to: S_(B.to, 80), toCode: S_(B.toCode, 3).toUpperCase(), date: B.date, dep: HM(B.dep), arrDate: isDate(B.arrDate) ? B.arrDate : '', arr: HM(B.arr), carrier: S_(B.carrier, 60), number: S_(B.number, 20), pnr: S_(B.pnr, 24), passengers: (B.passengers || []).slice(0, 12).map(x => S_(x, 60)), seats: S_(B.seats, 200), notes: S_(B.notes, 400) } : null;
+    res.json({ relevant: r.relevant !== false && (items.length > 0 || !!lod || !!bk), summary: S_(r.summary, 300), items, lodging: lod, booking: bk, gapsDone: (r.gapsDone || []).slice(0, 12).map(x => parseInt(x, 10)).filter(x => x >= 0 && x < 12), warnings: (r.warnings || []).slice(0, 6).map(x => S_(x, 300)) });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
 // ---- fotolibro: impaginazione (partecipanti) e stampa con Peecho (solo amministratore) ----
 const sigKey = () => process.env.CRED_SECRET || process.env.ADMIN_PIN || 'sviluppo';
 const pdfSig = slug => crypto.createHmac('sha256', sigKey()).update('libro:' + slug).digest('hex').slice(0, 40);
@@ -173,6 +202,7 @@ app.post('/api/book/:slug/pdf', express.json({ limit: '10kb' }), trip, async (re
   try {
     const t = await archive.detail(slug); if (!t) return res.status(404).json({ error: 'Scheda del viaggio non presente in archivio' });
     t._cover = await archive.read(slug + '/cover.png');
+    Object.keys(req.trip.state.kv).forEach(k => { const v = req.trip.state.kv[k].v; if (k.startsWith('poi.') && v && typeof v === 'object') t.poi[k.slice(4)] = v; });
     const r = await buildBook(t, req.trip.state.kv, id => sync.getPhoto(slug, id));
     await sync.putFile(slug, 'book/libro.pdf', r.pdf);
     const meta = { pages: r.pages, photos: r.photos, mb: Math.round(r.pdf.length / 104857.6) / 10, at: Date.now(), by: req.trip.user };

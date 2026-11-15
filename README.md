@@ -1,6 +1,6 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 1.6 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 1.7 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
@@ -11,6 +11,14 @@ Il modulo chiede destinazione, città di partenza, date, numero, nomi e foto dei
 Nel modulo, sotto il mezzo di trasporto, si caricano i documenti delle prenotazioni già fatte: biglietti aerei e ferroviari, traghetti, noleggi, conferme d'albergo, in PDF o foto (fino a 8 file, 7,5 MB l'uno). Claude li legge prima di disegnare il viaggio ed estrae tratte, date, orari, sigle, compagnia, numero, codice di prenotazione, passeggeri, posti e alloggio. Questi dati diventano vincoli: le tappe di viaggio del primo e dell'ultimo giorno portano gli orari veri e il resto del programma si adatta. Se la prenotazione di andata è un volo o un treno e nel modulo era indicato un altro mezzo, vale la prenotazione. Le incongruenze che Claude rileva (date fuori dal periodo, passeggeri che non corrispondono) compaiono nel registro della generazione, prima dell'anteprima.
 
 Nella figlia, sezione Arrivo, ogni tratta è un biglietto con orari, codice e passeggeri, e i documenti originali si aprono anche offline. Stanno dentro il contenuto cifrato del viaggio, quindi li vedono solo i partecipanti. Limite: i documenti incorporati non superano circa 4,5 MB in totale; quelli oltre vengono letti ma non allegati. Senza chiave Claude i documenti vengono allegati ma non letti.
+
+## Prenotazioni aggiunte dal wallet della figlia (v1.7)
+
+Quando un partecipante carica un documento nel wallet della figlia (PDF o immagine), la figlia lo manda alla madre (`POST /api/wallet/:slug/read`, autenticata con il token del viaggio), Claude lo legge e la figlia applica il risultato per tutto il gruppo: le tappe prenotate entrano nel programma del giorno giusto all'orario prenotato (check-in, check-out, voli, treni, ingressi con orario), oppure sostituiscono la tappa già prevista che coprono; un alloggio diventa il punto di partenza e di rientro delle giornate comprese tra arrivo e partenza; la voce corrispondente di Cosa manca viene chiusa; la prenotazione compare in Arrivo con codice e avvertenze. Ogni lettura resta nel wallet con il riepilogo di ciò che ha cambiato e un pulsante Annulla che riporta il programma com'era. Se il documento non riguarda il viaggio (date o luogo diversi) la figlia lo conserva nel wallet e non tocca il programma. Serve la madre sveglia: su piano gratuito la prima lettura dopo una pausa può richiedere fino a un minuto.
+
+## Altre mete (v1.7)
+
+Alla creazione del viaggio Claude prepara, oltre al programma, una quindicina di mete non in programma, divise per categoria, ciascuna con durata, costo, link di prenotazione e l'indicazione della tappa che può sostituire. Nella figlia stanno sotto Viaggio, scheda Altre mete: con Metti in programma si sceglie il giorno e la tappa entra con orari, tragitti e costi ricalcolati. Con Una meta vostra il gruppo aggiunge un luogo proprio (nome, indirizzo o coordinate, durata), condiviso tra i telefoni e riportato nel fotolibro. Le altre mete nascono con il viaggio: i viaggi generati prima della v1.7 hanno solo Una meta vostra.
 
 ## Cosa manca, link di prenotazione, città vicine
 
@@ -100,7 +108,7 @@ In Impostazioni, il pulsante Prova i collegamenti fa una chiamata minima a Claud
 
 ## Collaudo
 
-`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (45 controlli). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
+`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (51 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
 
 ## Struttura
 

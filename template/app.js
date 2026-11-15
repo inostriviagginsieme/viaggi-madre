@@ -37,6 +37,9 @@ function vp(id){var p=POI[id];if(p&&p.secret&&p.revealAt&&new Date()<new Date(p.
 function gSearch(p){return "https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(p.n+" "+T.dest.name);}
 function gyg(n){return "https://www.getyourguide.it/s/?q="+encodeURIComponent(n+" "+T.dest.name);}
 function taxiStrip(){var x=T.taxi;if(!x||!x.name)return "";return '<div class="trf" style="margin-left:2px"><span>Taxi: '+(x.tel?'<a href="tel:'+esc(x.tel.replace(/ /g,""))+'" style="font-weight:700">'+esc(x.tel)+'</a> · ':'')+esc(x.name)+'</span></div>';}
+function mergePoi(){POI=Object.assign({},T.poi||{});keys("poi.").forEach(function(k){POI[k.slice(4)]=KV[k].v;});}
+function lodgings(){var a=[];if(T.lodging&&T.lodging.n)a.push(Object.assign({from:T.dates.start,to:T.dates.end,base:1},T.lodging));keys("lodg.").forEach(function(k){a.push(KV[k].v);});return a;}
+function lodgingAt(date,morning){var L=lodgings().filter(geo),pick=function(arr){return arr.filter(function(x){return morning?(date>x.from&&date<=x.to):(date>=x.from&&date<x.to);})[0];};return pick(L.filter(function(x){return !x.base;}))||pick(L.filter(function(x){return x.base;}))||null;}
 function plan(){
   var p=g("plan",null);
   if(!p){p={};DAYS.forEach(function(D){p[D.id]=D.items.slice();});}
@@ -59,8 +62,8 @@ function transfer(a,b){
   return {mode:"ride",min:m2,d:d,txt:"circa "+m2+" min"+(b.stop?" · "+b.stop:" con i mezzi o in taxi")};
 }
 function schedule(D){
-  var ids=plan()[D.id]||[], t=toMin(D.start), out=[], prev=null, walked=0, cost=0, di=DAYS.indexOf(D), H=T.lodging;
-  if(di>0&&geo(H)){var f=ids.map(function(i){return POI[i];}).filter(geo)[0]; if(f&&hav(H,f)>60)prev=H;}
+  var ids=plan()[D.id]||[], t=toMin(D.start), out=[], prev=null, walked=0, cost=0, di=DAYS.indexOf(D), Hm=lodgingAt(D.date,true), H=lodgingAt(D.date,false);
+  if(Hm){var f=ids.map(function(i){return POI[i];}).filter(geo)[0]; if(f&&hav(Hm,f)>60)prev=Hm;}
   ids.forEach(function(id){
     var p=POI[id]; if(!p)return;
     var tr=transfer(prev,p); if(tr){t+=tr.min; if(tr.mode==="walk")walked+=tr.d;}
@@ -70,7 +73,7 @@ function schedule(D){
     if(geo(p))prev=p;
   });
   var back=null;
-  if(di<DAYS.length-1&&geo(H)&&prev&&hav(prev,H)>200){back=transfer(prev,{lat:H.lat,lon:H.lon,stop:"rientro all'alloggio"}); if(back){t+=back.min; if(back.mode==="walk")walked+=back.d;}}
+  if(H&&prev&&hav(prev,H)>200){back=transfer(prev,{lat:H.lat,lon:H.lon,stop:"rientro all'alloggio"}); if(back){t+=back.min; if(back.mode==="walk")walked+=back.d;}}
   return {rows:out,end:t,km:walked/1000,cost:cost,back:back,last:prev};
 }
 function gmaps(from,to,mode){return 'https://www.google.com/maps/dir/?api=1&origin='+from.lat+','+from.lon+'&destination='+to.lat+','+to.lon+'&travelmode='+(mode==="walk"?"walking":(T.localMode||"transit"));}
@@ -110,11 +113,11 @@ var vTab=-1, LMAP=null, LLAY=null; /* -1 sintesi, 0..n giorni, 99 mappa */
 function renderViaggio(){
   var ch='<button class="chip'+(vTab===-1?" on":"")+'" onclick="vTab=-1;renderViaggio()">Programma</button>';
   DAYS.forEach(function(D,i){ch+='<button class="chip'+(vTab===i?" on":"")+'" onclick="vTab='+i+';renderViaggio()">'+esc(D.dow.slice(0,3)+" "+("0"+D.n).slice(-2))+'</button>';});
-  ch+='<button class="chip'+(vTab===98?" on":"")+'" onclick="vTab=98;renderViaggio()">Tavola</button><button class="chip'+(vTab===99?" on":"")+'" onclick="vTab=99;renderViaggio()">Mappa</button>';
+  ch+='<button class="chip'+(vTab===97?" on":"")+'" onclick="vTab=97;renderViaggio()">Altre mete</button><button class="chip'+(vTab===98?" on":"")+'" onclick="vTab=98;renderViaggio()">Tavola</button><button class="chip'+(vTab===99?" on":"")+'" onclick="vTab=99;renderViaggio()">Mappa</button>';
   $("vChips").innerHTML=ch;
   $("lmapWrap").style.display=vTab===99?"block":"none";
   if(vTab===99){$("vBody").innerHTML=mapChips();drawMap();return;}
-  $("vBody").innerHTML=vTab===-1?planHtml():vTab===98?tavolaHtml():dayHtml(DAYS[vTab]);
+  $("vBody").innerHTML=vTab===-1?planHtml():vTab===98?tavolaHtml():vTab===97?extraHtml():dayHtml(DAYS[vTab]);
 }
 function planHtml(){
   var h=nowCard(), nr=nowRow(), P=parked();
@@ -133,10 +136,8 @@ function planHtml(){
     });
     if(s.back)h+='<div class="trf"><span>rientro · '+esc(s.back.txt)+'</span></div>';
   });
-  h+='<div class="tt">Tappe di riserva</div><p class="dsub">Quello che togli dai giorni finisce qui, insieme alle proposte di riserva. Si rimette dove vuoi.</p>';
-  if(!P.length)h+='<div class="card flat muted">Niente da parte.</div>';
-  P.forEach(function(id){var p=POI[id];h+=tk("pk","+","",esc(p.n),esc([p.sub,p.priceTxt].filter(Boolean).join(" · ")),"","tapItem('parked','"+id+"')");});
-  h+='<div class="tt">Il viaggio in numeri</div><div class="card"><div class="kv"><b>Tappe</b><span>'+tn+' in '+DAYS.length+' giorni, '+P.length+' di riserva</span></div><div class="kv"><b>A piedi</b><span>circa '+tk0.toFixed(1)+' km in totale</span></div><div class="kv"><b>Ingressi e pasti</b><span>circa '+eur0(tc)+' a testa secondo il programma. Il quadro completo è in Conti.</span></div></div>';
+  h+='<div class="tt">Altre mete</div><div class="card"><p class="muted" style="margin:0 0 10px">'+P.length+' mete fuori programma, pronte per le variazioni: quelle proposte in più e quelle che togli dai giorni.</p><button class="btn full" onclick="vTab=97;renderViaggio();$(\'scroll\').scrollTo(0,0)">Apri le altre mete</button></div>';
+  h+='<div class="tt">Il viaggio in numeri</div><div class="card"><div class="kv"><b>Tappe</b><span>'+tn+' in '+DAYS.length+' giorni, '+P.length+' fuori programma</span></div><div class="kv"><b>A piedi</b><span>circa '+tk0.toFixed(1)+' km in totale</span></div><div class="kv"><b>Ingressi e pasti</b><span>circa '+eur0(tc)+' a testa secondo il programma. Il quadro completo è in Conti.</span></div></div>';
   return h;
 }
 function dayHtml(D){
@@ -157,6 +158,18 @@ function dayHtml(D){
   if(!s.rows.length)h+='<div class="card flat muted">Giornata vuota: aggiungi tappe da quelle di riserva, nel Programma.</div>';
   return h;
 }
+function extraHtml(){
+  var K=parked(), groups={}, order=[];
+  K.forEach(function(id){var p=vp(id);if(p.masked)return;var c=p.cat||"Tolte dal programma e di riserva";if(!groups[c]){groups[c]=[];order.push(c);}groups[c].push(id);});
+  var h='<div class="card soft"><h3>Altre mete</h3><p class="muted" style="margin-top:6px">'+K.length+' mete fuori programma per variare il viaggio: sostituire una tappa, riempire un buco, cambiare giornata se piove. Tocca «Metti in programma» e scegli il giorno: orari e tragitti si ricalcolano.</p></div>';
+  order.forEach(function(c){h+='<div class="tt">'+esc(c)+'</div>';groups[c].forEach(function(id){var p=POI[id];
+    h+='<div class="card"><b style="display:block;font-size:16px">'+esc(p.n)+'</b><div class="muted small">'+esc([p.sub,p.priceTxt,p.min?dur(p.min):""].filter(Boolean).join(" · "))+'</div><div style="font-size:13.5px;margin-top:6px">'+esc(p.desc||"")+'</div>'+(p.swap?'<div class="tip"><b>Dove si incastra</b>'+esc(p.swap)+'</div>':'')+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn" style="padding:8px 10px" onclick="tapItem(\'parked\',\''+id+'\')">Metti in programma</button><button class="btn sec" style="padding:8px 10px" onclick="detail(\''+id+'\')">Scheda e link</button></div></div>';});});
+  h+='<div class="tt">Una meta vostra</div><div class="card"><p class="muted small" style="margin:0 0 8px">Un posto che vi hanno consigliato e che qui non c\'è: scrivilo e poi mettilo nel giorno che vuoi.</p><input class="inp" id="ownN" placeholder="Nome del posto"><input class="inp" id="ownS" placeholder="Nota (facoltativa): indirizzo, orario, chi lo consiglia" style="margin-top:8px"><button class="btn full" style="margin-top:8px" onclick="addOwn()">Aggiungi alle mete</button></div>';
+  return h;
+}
+function addOwn(){var n=$("ownN").value.trim();if(!n){toast("Scrivi il nome del posto");return;}var id=uid("o"),it={n:n,sub:$("ownS").value.trim(),kind:"see",ico:"📍",min:60,lat:null,lon:null,price:0,priceTxt:"",desc:"Aggiunta da "+me().name+".",tip:"",cat:"Le vostre"};
+  put("poi."+id,it);POI[id]=it;var K=parked();K.push(id);put("parked",K);renderViaggio();toast("Aggiunta: ora mettila in programma");}
 function tavolaHtml(){
   var h='<div class="card soft"><h3>A tavola</h3><p class="muted" style="margin-top:6px">Pranzi e cene del programma, in ordine, con quando prenotare e il piano B. I locali tra le tappe di riserva sono in fondo.</p></div>';
   var row=function(id,when){var p=vp(id);if(p.kind!=="eat"||p.masked)return "";
@@ -227,7 +240,7 @@ function drawMap(){
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(LMAP);LLAY=L.layerGroup().addTo(LMAP);}
   LLAY.clearLayers(); var all=[];
   function ic(c,t){return L.divIcon({className:"",html:'<div class="pin" style="background:'+c+'">'+t+'</div>',iconSize:[26,26],iconAnchor:[13,13]});}
-  if(geo(T.lodging)){L.marker([T.lodging.lat,T.lodging.lon],{icon:ic("#2F3A3B","🛏")}).addTo(LLAY).bindPopup("<b>"+esc(T.lodging.n||"Alloggio")+"</b>");all.push([T.lodging.lat,T.lodging.lon]);}
+  lodgings().filter(geo).forEach(function(x){L.marker([x.lat,x.lon],{icon:ic("#1D2942","H")}).addTo(LLAY).bindPopup("<b>"+esc(x.n||"Alloggio")+"</b>");all.push([x.lat,x.lon]);});
   DAYS.filter(function(D){return mapFilter==="all"||mapFilter===D.id;}).forEach(function(D){
     var pts=[], n=0;
     schedule(D).rows.forEach(function(r){if(!geo(r.p))return; n++; var ll=[r.p.lat,r.p.lon]; pts.push(ll); all.push(ll);
@@ -305,12 +318,14 @@ function renderArrivo(){
   (X.links||[]).forEach(function(l,i){h+='<a class="btn '+(i?"sec ":"")+'full" style="margin-top:8px" href="'+safeUrl(l.u)+'" target="_blank" rel="noopener">'+esc(l.t)+'</a>';});
   if(X.linkNote)h+='<p class="muted small" style="margin:8px 0 0">'+esc(X.linkNote)+'</p>';
   h+='</div>';
-  if((X.bookings||[]).length){h+='<div class="tt">Prenotazioni</div>';
-    X.bookings.forEach(function(b,i){var d=(T.docs||[])[b.doc-1], dd=b.date?b.date.slice(8)+"/"+b.date.slice(5,7):"";
+  var BKS=(X.bookings||[]).concat(keys("bk.").map(function(k){return KV[k].v;}));
+  if(BKS.length){h+='<div class="tt">Prenotazioni</div>';
+    BKS.forEach(function(b,i){var d=(T.docs||[])[b.doc-1], dd=b.date?b.date.slice(8)+"/"+b.date.slice(5,7):"";
       h+='<div class="tk"><div class="h">'+esc(b.dep||"")+'<small>'+esc(dd)+'</small><small style="margin-top:8px;color:var(--ink)">'+esc(b.arr||"")+'</small></div><div class="bd"><b>'+esc((b.fromCode||b.from)+" → "+(b.toCode||b.to))+'</b><div class="met">'+esc([b.from+" → "+b.to,[b.carrier,b.number].filter(Boolean).join(" "),b.seats].filter(Boolean).join(" · "))+'</div>'+
         (b.pnr?'<div style="margin-top:7px">'+pill("Prenotazione "+esc(b.pnr),"b")+'</div>':'')+((b.passengers||[]).length?'<div class="met" style="margin-top:5px">'+esc(b.passengers.join(", "))+'</div>':'')+(b.notes?'<div style="font-size:13px;margin-top:6px">'+esc(b.notes)+'</div>':'')+
         (d?'<button class="btn sec" style="padding:8px 10px;margin-top:9px" onclick="openTripDoc('+(b.doc-1)+')">Apri il documento</button>':'')+'</div></div>';});
     h+='<p class="muted small">Dati letti da Claude dai documenti caricati: controllali una volta sul documento originale.</p>';}
+  keys("lodg.").forEach(function(k){var x=KV[k].v,dd=function(d){return d.slice(8)+"/"+d.slice(5,7);};h+='<div class="tt">Alloggio dal '+esc(dd(x.from))+' al '+esc(dd(x.to))+'</div><div class="card"><b>'+esc(x.n)+'</b><div class="muted small">'+esc(x.addr||"")+'</div><div class="kv" style="margin-top:6px"><b>Check-in</b><span>'+esc(dd(x.from)+(x.checkin?" dalle "+x.checkin:""))+'</span></div><div class="kv"><b>Check-out</b><span>'+esc(dd(x.to)+(x.checkout?" entro le "+x.checkout:""))+'</span></div>'+(x.pnr?'<div class="kv"><b>Prenotazione</b><span>'+esc(x.pnr)+'</span></div>':'')+(x.note?'<div style="font-size:13px;margin-top:6px">'+esc(x.note)+'</div>':'')+(geo(x)?'<a class="btn sec full" style="margin-top:8px" href="https://www.google.com/maps/search/?api=1&query='+x.lat+','+x.lon+'" target="_blank" rel="noopener">Apri in Google Maps</a>':'')+'</div>';});
   var LB=X.lodgingBooking; if(LB&&LB.name)h+='<div class="tt">Alloggio prenotato</div><div class="card"><b>'+esc(LB.name)+'</b><div class="muted small">'+esc(LB.address||"")+'</div><div class="kv" style="margin-top:6px"><b>Check-in</b><span>'+esc(LB.checkin||"")+'</span></div><div class="kv"><b>Check-out</b><span>'+esc(LB.checkout||"")+'</span></div>'+(LB.pnr?'<div class="kv"><b>Prenotazione</b><span>'+esc(LB.pnr)+'</span></div>':'')+(LB.notes?'<div style="font-size:13px;margin-top:6px">'+esc(LB.notes)+'</div>':'')+'</div>';
   if((T.docs||[]).length){h+='<div class="tt">Documenti di viaggio</div><div class="card">';T.docs.forEach(function(d,i){h+='<div class="wdoc"><div><span class="pill">'+(d.type==="application/pdf"?"PDF":"FOTO")+'</span></div><div class="bd"><b>'+esc(d.name)+'</b></div><button onclick="openTripDoc('+i+')">Apri</button></div>';});h+='<p class="muted small" style="margin:8px 0 0">Caricati da chi ha organizzato il viaggio, disponibili anche offline per tutti i partecipanti.</p></div>';}
   if((X.routes||[]).length){h+='<div class="tt">Le strade, da Google</div>';
@@ -541,9 +556,53 @@ function dl(blob,name){var u=URL.createObjectURL(blob),a=document.createElement(
 async function loadDocs(){var arr=await dbAll("d");arr.sort(function(a,b){return a.ts-b.ts;});WDOCS=arr.map(function(d){if(!d.url)try{d.url=URL.createObjectURL(d.blob);}catch(e){}return d;});}
 function docRow(d){return '<div class="wdoc"><div>'+'<span class="pill">'+(d.type==="application/pdf"?"PDF":"FOTO")+'</span>'+'</div><div class="bd"><b>'+esc(d.name)+'</b><div class="muted small">'+esc(d.poi&&POI[d.poi]?POI[d.poi].n:"Senza tappa")+'</div></div><button onclick="openDoc(\''+d.id+'\')">Apri</button>'+(navigator.share?'<button onclick="shareDoc(\''+d.id+'\')">Invia</button>':'')+'<button onclick="delDoc(\''+d.id+'\')">×</button></div>';}
 function pickDocFor(poi){var i=$("docIn");i.dataset.poi=poi||"";i.click();}
-async function addDocs(list,poi){var n=0;for(var i=0;i<list.length;i++){var f=list[i],pdf=f.type==="application/pdf"||/\.pdf$/i.test(f.name||""),img=f.type&&f.type.indexOf("image")===0;if((!pdf&&!img)||f.size>25*1048576)continue;
-    try{var blob=img?await shrink(f,2000):f;await dbPut({id:uid("d"),poi:poi||"",name:(f.name||"documento").replace(/\.[^.]+$/,""),type:pdf?"application/pdf":"image/jpeg",blob:blob,ts:Date.now()},"d");n++;}catch(e){}}
-  await loadDocs();closeSheet();renderAltro();toast(n+(n===1?" documento salvato":" documenti salvati"));}
+async function addDocs(list,poi){var n=0,fresh=[];for(var i=0;i<list.length;i++){var f=list[i],pdf=f.type==="application/pdf"||/\.pdf$/i.test(f.name||""),img=f.type&&f.type.indexOf("image")===0;if((!pdf&&!img)||f.size>25*1048576)continue;
+    try{var blob=img?await shrink(f,2000):f,rec={id:uid("d"),poi:poi||"",name:(f.name||"documento").replace(/\.[^.]+$/,""),type:pdf?"application/pdf":"image/jpeg",blob:blob,ts:Date.now()};await dbPut(rec,"d");fresh.push(rec);n++;}catch(e){}}
+  await loadDocs();closeSheet();renderAltro();toast(n+(n===1?" documento salvato":" documenti salvati"));
+  if(!poi&&syncOn())for(var k=0;k<fresh.length;k++)await readBooking(fresh[k]);}
+/* Una prenotazione aggiunta al wallet viene letta da Claude e modifica il programma di tutto il gruppo. */
+function blob64(b){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(String(r.result));};r.onerror=rej;r.readAsDataURL(b);});}
+async function readBooking(d){
+  if(d.blob.size>9.5e6){toast("Documento troppo grande per essere letto: resta nel wallet");return;}
+  toast("Leggo la prenotazione: fino a un minuto…");
+  try{
+    var data=(await blob64(d.blob)).replace(/^data:[^;]*;/,"data:"+d.type+";");
+    var ctx={dest:T.dest.name,start:T.dates.start,end:T.dates.end,people:T.people.map(function(p){return p.name;}),
+      days:DAYS.map(function(D){return {date:D.date,title:D.title,stops:schedule(D).rows.map(function(r){return {at:hhmm(r.st),n:POI[r.id].n,kind:POI[r.id].kind};})};}),
+      gaps:(T.gaps||[]).map(function(x,i){return {i:i,kind:x.kind,t:x.t,date:x.date,dateEnd:x.dateEnd};}).filter(function(x){return !g("gap."+x.i);})};
+    var r=await fetch(T.sync.api+"/api/wallet/"+T.slug+"/read",{method:"POST",headers:{"content-type":"application/json","x-trip-token":AUTH.tok},body:JSON.stringify({name:d.name,data:data,ctx:ctx})}),j=await r.json();
+    if(!r.ok)throw new Error(j.error||"errore");
+    if(!j.relevant){toast("Documento salvato. Non contiene una prenotazione da mettere in programma.");return;}
+    applyBooking(j,d);
+  }catch(e){toast("Documento salvato, lettura non riuscita: "+e.message);}
+}
+function applyBooking(j,d){
+  var wid=uid("w"), ids=[], removed=[], lines=[];
+  (j.items||[]).forEach(function(it,n){
+    var D=DAYS.filter(function(x){return x.date===it.date;})[0]; if(!D)return;
+    var id=wid+"i"+n, rep=it.replaces, at=toMin(it.at), rows=schedule(D).rows, P=plan(), arr=P[D.id], ri=-1;
+    delete it.date;delete it.replaces;it.w=wid;put("poi."+id,it);POI[id]=it;
+    if(rep)arr.forEach(function(x,i){if(norm(POI[x].n)===norm(rep))ri=i;});
+    if(ri>=0){removed.push([D.id,arr[ri],ri]);lines.push(dshort(D)+" "+it.at+" · "+it.n+" (al posto di «"+POI[arr[ri]].n+"»)");arr.splice(ri,1,id);}
+    else{var pos=arr.length;for(var i=0;i<rows.length;i++){if(rows[i].st+(rows[i].p.min||30)>at+5){pos=arr.indexOf(rows[i].id);break;}}arr.splice(pos<0?arr.length:pos,0,id);lines.push(dshort(D)+" "+it.at+" · "+it.n);}
+    put("plan",P);ids.push(id);
+  });
+  if(j.lodging){put("lodg."+wid,j.lodging);lines.push("Alloggio: "+j.lodging.n+", dal "+j.lodging.from.slice(8)+"/"+j.lodging.from.slice(5,7)+" al "+j.lodging.to.slice(8)+"/"+j.lodging.to.slice(5,7)+". I tragitti di quei giorni partono da lì.");}
+  if(j.booking){put("bk."+wid,j.booking);lines.push("Prenotazione di viaggio aggiunta in Arrivo.");}
+  var gd=(j.gapsDone||[]).filter(function(i){return (T.gaps||[])[i]&&!g("gap."+i);});
+  gd.forEach(function(i){put("gap."+i,1);lines.push("Segnata come prenotata: "+T.gaps[i].t);});
+  put("wlog."+wid,{name:d.name,summary:j.summary,ids:ids,removed:removed,gaps:gd,lines:lines,warn:j.warnings||[],by:me().id,ts:Date.now()});
+  if(ids.length){d.poi=ids[0];dbPut({id:d.id,poi:d.poi,name:d.name,type:d.type,blob:d.blob,ts:d.ts},"d").then(loadDocs);}
+  renderCurrent();
+  openSheet('<div class="grab"></div><h3>Prenotazione letta</h3><div style="font-size:14.5px;margin:8px 0 10px">'+esc(j.summary)+'</div><h4>Modifiche al programma</h4>'+lines.map(function(l){return '<div class="kv"><span>'+esc(l)+'</span></div>';}).join("")+
+    (j.warnings||[]).map(function(w){return '<div class="tip"><b>Da controllare</b>'+esc(w)+'</div>';}).join("")+
+    '<p class="muted small" style="margin-top:10px">Lette da Claude dal documento: controlla una volta date e orari sull\'originale.'+(syncOn()?' Valgono per tutto il gruppo.':'')+'</p><div class="row" style="margin-top:10px"><button class="btn" onclick="closeSheet();vTab=-1;go(\'s-viaggio\')">Vedi il programma</button><button class="btn ghost" onclick="undoWallet(\''+wid+'\')">Annulla le modifiche</button></div>');
+}
+function undoWallet(wid){var L=g("wlog."+wid,null);if(!L)return;var P=plan(),K=parked();
+  (L.ids||[]).forEach(function(id){DAYS.forEach(function(D){var i=P[D.id].indexOf(id);if(i>=0)P[D.id].splice(i,1);});var k=K.indexOf(id);if(k>=0)K.splice(k,1);put("poi."+id,null);});
+  (L.removed||[]).forEach(function(x){if(POI[x[1]]&&P[x[0]]&&P[x[0]].indexOf(x[1])<0)P[x[0]].splice(Math.min(x[2],P[x[0]].length),0,x[1]);});
+  put("plan",P);put("parked",K);put("lodg."+wid,null);put("bk."+wid,null);(L.gaps||[]).forEach(function(i){put("gap."+i,0);});put("wlog."+wid,null);
+  mergePoi();closeSheet();renderCurrent();toast("Modifiche annullate: il documento resta nel wallet");}
 function openDoc(id){var d=WDOCS.filter(function(x){return x.id===id;})[0];if(d)window.open(d.url,"_blank");}
 async function shareDoc(id){var d=WDOCS.filter(function(x){return x.id===id;})[0];if(!d||!navigator.share)return;try{var f=new File([d.blob],d.name+(d.type==="application/pdf"?".pdf":".jpg"),{type:d.type});if(navigator.canShare&&!navigator.canShare({files:[f]})){toast("Questo telefono non condivide file da qui");return;}await navigator.share({files:[f],title:d.name});}catch(e){}}
 async function delDoc(id){if(!confirm("Elimino il documento dal wallet?"))return;await dbDel(id,"d");await loadDocs();closeSheet();renderAltro();}
@@ -561,7 +620,10 @@ function renderAltro(){
     c.items.forEach(function(x,ii){var k="pack."+ci+"_"+ii+"."+me().id,dn=g(k);h+='<div class="ck'+(dn?" done":"")+'" style="padding:6px 0" onclick="put(\''+k+'\','+(dn?0:1)+');renderAltro()"><div class="box">'+(dn?"✓":"")+'</div><div class="bd"><b style="font-weight:600">'+esc(x)+'</b></div></div>';});});
   h+='</div><div class="tt">Wallet: biglietti e documenti</div><div class="card"><p class="muted small" style="margin:0 0 8px">PDF o foto di biglietti e prenotazioni, salvati su questo telefono e disponibili offline. Si agganciano a una tappa dalla sua scheda.</p>';
   WDOCS.forEach(function(d){h+=docRow(d);});
-  h+='<button class="btn sec full" onclick="pickDocFor(\'\')">Aggiungi biglietto o documento</button></div>';
+  h+='<button class="btn full" onclick="pickDocFor(\'\')">Aggiungi biglietto o prenotazione</button><p class="muted small" style="margin:8px 0 0">'+(syncOn()?'Ogni prenotazione aggiunta qui viene letta: la tappa entra nel programma del gruppo al giorno e all\'ora giusti, e se copre una voce mancante la chiude.':'La lettura automatica richiede il collegamento con la webapp madre.')+'</p>';
+  var WL=keys("wlog.").map(function(k){return Object.assign({id:k.slice(5)},KV[k].v);}).sort(function(a,b){return b.ts-a.ts;});
+  if(WL.length){h+='<h4 style="margin-top:14px">Lette e messe in programma</h4>';WL.forEach(function(x){h+='<div class="kv" style="display:block"><b style="display:block;width:auto;color:var(--ink);font:700 14px/1.3 var(--body);text-transform:none;letter-spacing:0">'+esc(x.name)+'</b><span class="muted small" style="display:block;margin:2px 0 4px">'+esc(x.summary||"")+'</span><span class="small" style="display:block">'+(x.lines||[]).map(esc).join("<br>")+'</span><button class="btn ghost" style="padding:6px 9px;margin-top:6px" onclick="if(confirm(\'Annullo le modifiche al programma portate da questa prenotazione?\'))undoWallet(\''+x.id+'\')">Annulla le modifiche</button></div>';});}
+  h+='</div>';
   var nOk=S.notif&&("Notification" in window)&&Notification.permission==="granted";
   h+='<div class="tt">Avvisi e calendario</div><div class="card">'+(nOk?'<div class="pill g" style="margin-bottom:8px">Avvisi attivi su questo telefono</div><button class="btn ghost full" onclick="S.notif=0;save();renderAltro()">Disattiva gli avvisi</button>':'<p class="small" style="margin:0 0 8px">Nei giorni del viaggio, 30 minuti prima di ogni tappa. Funziona con l\'app aperta o in secondo piano da poco; su iPhone solo con l\'app installata.</p><button class="btn full" onclick="enableNotif()">Attiva gli avvisi</button>')+
     '<hr><p class="small" style="margin:0 0 8px">Il metodo che non sbaglia: il programma nel calendario del telefono, con sveglia 30 minuti prima di ogni tappa.</p><button class="btn sec full" onclick="exportIcs()">Scarica il programma nel calendario (.ics)</button></div>';
@@ -637,6 +699,7 @@ async function sync(manual){
     var j=await r.json(), changed=false;
     Object.keys(j.changes||{}).forEach(function(k){var c=j.changes[k];if(!KV[k]||c.ts>KV[k].ts||(c.ts===KV[k].ts&&JSON.stringify(c.v)!==JSON.stringify(KV[k].v))){KV[k]={v:c.v,ts:c.ts};changed=true;}});
     ks.forEach(function(k){if(KV[k]&&sent[k]&&KV[k].ts<=sent[k].ts)delete S.dirty[k];});
+    if(changed)mergePoi();
     S.rev=j.rev;S.last=Date.now();syncState="ok";save();
     var moved=await photoSync();
     if(changed||moved||manual){var a=document.activeElement;if(!a||!/INPUT|TEXTAREA/.test(a.tagName))renderCurrent();}
@@ -732,7 +795,7 @@ async function boot(){
 }
 async function startApp(fresh){
   LS="viaggio_"+T.slug; POI=T.poi||{}; DAYS=T.days||[]; APP_VER=T.ver||"1";
-  load();
+  load();mergePoi();
   $("hTitle").textContent=T.title;header();
   $("inT").textContent=T.title;$("inS").textContent=(T.dateLabel||"")+" · "+T.people.map(function(p){return p.name;}).join(", ");
   $("finT").textContent=T.title;$("verTag").textContent="Versione "+APP_VER;
