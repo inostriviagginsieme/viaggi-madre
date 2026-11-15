@@ -1,6 +1,6 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 1.3 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 1.4 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
@@ -79,6 +79,10 @@ Limiti da conoscere. L'icona dell'app, cioè il logo con le caricature, e le fot
 - I prezzi di Volagratis, Trenitalia e degli hotel non sono interrogati: non esistono interfacce aperte utilizzabili (verifica del 14/11/2026).
 - Volagratis e Trenitalia non accettano ricerche già compilate dall'esterno: la figlia apre il sito e mostra i dati da inserire. I prezzi indicati da Claude sono stime.
 - Itinerario, prezzi e orari sono proposte di Claude e vanno verificati prima di prenotare. Per questo la pubblicazione passa sempre dall'anteprima.
+
+## Affidabilità della generazione
+
+Claude consegna ogni risultato come argomento di uno strumento, non come testo: l'API restituisce un oggetto già interpretato e sparisce l'errore di JSON malformato visto al primo viaggio reale (15/11/2026). Ogni chiamata ha tre tentativi, il secondo e il terzo con testi più brevi. Il programma si genera una giornata per chiamata: se una giornata fallisce le altre restano, la giornata resta vuota e il registro lo segnala. Con `CLAUDE_WEB_SEARCH=true` lo strumento non si può imporre e si torna al testo, quindi quella modalità è meno affidabile.
 
 ## Collaudo
 
