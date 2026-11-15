@@ -1,6 +1,6 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 2.0 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 2.1 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
@@ -47,6 +47,10 @@ Sito ricordo. Un viaggio già fatto nasce con `past`: Claude non pianifica, rico
 Accesso famiglia. Al posto di una password per persona e per sito, i siti importati hanno un solo utente, `famiglia`, con la password scelta dall'amministratore al momento dell'importazione (almeno 8 lettere o cifre, senza distinzione tra maiuscole e minuscole). La password non viene salvata da nessuna parte. Entrati, ognuno tocca il proprio nome per firmare foto e diario. Attenzione: il pulsante Credenziali dell'Archivio, usato su uno di questi siti, lo riporta alle password per persona.
 
 Importazione in blocco. In Archivio, Importa i viaggi passati: si carica un pacchetto `.json` (un elemento per cartella di viaggio, con i PDF e il testo estratto da fogli, presentazioni e note), si indicano i viaggiatori abituali e la password della famiglia. Per ogni viaggio Claude inquadra destinazione, date, mezzo e viaggiatori dai documenti, poi la madre genera e pubblica senza passare dall'anteprima. I viaggi già in archivio (stessa cartella) si saltano; quelli senza date ricavabili restano in elenco come non riusciti e si creano a mano; un viaggio con date future diventa un sito completo, non un ricordo. La pagina va lasciata aperta fino alla fine: due o tre minuti a viaggio.
+
+## Archivio compatto (v2.1)
+
+L'elenco dell'Archivio occupa una riga per viaggio: foto del luogo, titolo, date e partecipanti, e a destra le azioni come icone con il nome al passaggio del mouse (apri il sito, scheda, foto dal NAS, fotolibro, aggiorna l'app, nuove credenziali, copia del sito, repository). La foto del luogo arriva da Google (Places API New, con la stessa GOOGLE_MAPS_KEY: l'API va attivata sul progetto Google Cloud); se Places non è attivo si usa Wikipedia, e in mancanza l'icona dell'app. Le foto di Google restano solo in memoria e nella cache del browser, perché le condizioni di Google non ne permettono la conservazione. Prova i collegamenti ha la voce Luoghi, che dice se Places risponde.
 
 ## Foto del NAS (v2.0)
 
@@ -144,7 +148,7 @@ In Impostazioni, il pulsante Prova i collegamenti fa una chiamata minima a Claud
 
 ## Collaudo
 
-`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (82 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
+`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (84 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
 
 ## Struttura
 

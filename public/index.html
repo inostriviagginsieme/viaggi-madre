@@ -40,7 +40,15 @@ textarea{min-height:110px;resize:vertical}
 .pill{display:inline-block;font-size:11px;font-weight:800;padding:3px 9px;border-radius:99px;background:var(--linen);margin:0 5px 5px 0}
 .pill.g{background:#E1EBDD;color:#3F5F41}.pill.r{background:#F3E1D3;color:#A76E49}
 .code{font-size:26px;font-weight:900;letter-spacing:.18em;background:#FBECC8;border-radius:12px;padding:8px 14px;display:inline-block}
-.trip{display:flex;gap:12px;align-items:center;padding:12px 0;border-bottom:1px dashed var(--line)}
+.trip{display:flex;gap:10px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--line)}
+.trip .ph{flex:0 0 40px;width:40px;height:40px;border-radius:9px;background:var(--linen) center/cover no-repeat}
+.trip .bd b{font-size:14.5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trip .bd span.muted{display:block;font-size:12px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.trip .tg{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:1px;opacity:.75}
+.ibs{display:flex;gap:2px;flex:0 0 auto}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;border:0;background:transparent;color:inherit;cursor:pointer;padding:0;opacity:.72}
+.ib:hover,.ib:focus-visible{background:var(--linen);opacity:1}
+@media(max-width:620px){.trip{flex-wrap:wrap}.ibs{width:100%;padding-left:50px;margin-top:-2px}}
 .trip:last-child{border:0}
 .trip .bd{flex:1;min-width:0}
 .trip b{display:block}
@@ -211,9 +219,12 @@ function again(reset){$("jobBox").classList.add("hide");$("formBox").classList.r
 async function archive(){
   try{var j=await api("/api/trips");
     $("arcWhere").textContent=j.permanent?"Conservato in modo permanente nel repository privato "+j.where+": scheda completa, richiesta originale e copia del sito di ogni viaggio.":"Attenzione: senza GitHub l'archivio sta in una cartella locale e sul piano gratuito di Render si perde a ogni riavvio. Configura GITHUB_TOKEN per renderlo permanente.";
-    $("arc").innerHTML=j.trips.length?j.trips.map(function(t){var s=esc(t.slug);return '<div class="trip" style="flex-wrap:wrap">'+(t.icon?'<img src="'+esc(t.icon)+'" style="width:54px;height:54px;border-radius:14px" alt="">':'<div style="width:54px;height:54px;border-radius:14px;background:var(--linen)"></div>')+
-      '<div class="bd"><b>'+esc(t.title)+'</b><span class="muted">'+esc(t.dateLabel)+(t.dest?' · '+esc(t.dest):'')+'<br>'+esc((t.people||[]).join(", "))+(t.mode?' · '+esc(t.mode):'')+(t.generated?' · '+t.days+' giorni, '+t.stops+' tappe':'')+'</span></div>'+
-      '<div style="display:flex;gap:6px;flex-wrap:wrap;width:100%">'+(t.url?'<a class="btn" href="'+esc(t.url)+'" target="_blank" rel="noopener">Apri</a>':'')+(t.generated?'<button class="btn sec" onclick="det(\''+s+'\')">Scheda</button><button class="btn sec" onclick="getZip(\''+s+'\')">Copia del sito</button><button class="btn sec" onclick="newCreds(\''+s+'\',\''+esc(t.url)+'\')">Credenziali</button><button class="btn sec" onclick="updApp(\''+s+'\')">Aggiorna l\'app</button><button class="btn sec" onclick="nasTrip(\''+s+'\')">Foto dal NAS</button><button class="btn sec" onclick="printBox(\''+s+'\')">Fotolibro</button>':'')+(t.repo?'<a class="btn sec" href="'+esc(t.repo)+'" target="_blank" rel="noopener">Repository</a>':'')+'</div></div>';}).join(""):'Ancora nessun viaggio.';
+    ARC=j.trips;
+    $("arc").innerHTML=j.trips.length?j.trips.map(function(t){var s=esc(t.slug), ib=function(k,tt,act){return '<button class="ib" title="'+tt+'" aria-label="'+tt+'" onclick="'+act+'">'+IC[k]+'</button>';}, il=function(k,tt,u){return '<a class="ib" title="'+tt+'" aria-label="'+tt+'" href="'+esc(u)+'" target="_blank" rel="noopener">'+IC[k]+'</a>';};
+      return '<div class="trip"><div class="ph" id="ph_'+s+'"'+(t.icon?' style="background-image:url('+esc(t.icon)+')"':'')+'></div>'+
+      '<div class="bd"><b>'+esc(t.title)+(t.past?' <span class="tg">ricordo</span>':'')+'</b><span class="muted">'+esc(t.dateLabel)+' · '+esc((t.people||[]).join(", "))+(t.generated?' · '+t.days+' gg, '+t.stops+' tappe':'')+'</span></div>'+
+      '<div class="ibs">'+(t.url?il("open","Apri il sito",t.url):'')+(t.generated?ib("info","Scheda","det(\'"+s+"\')")+ib("nas","Foto dal NAS","nasTrip(\'"+s+"\')")+ib("book","Fotolibro","printBox(\'"+s+"\')")+ib("upd","Aggiorna l\'app","updApp(\'"+s+"\')")+ib("key","Nuove credenziali","newCreds(\'"+s+"\',\'"+esc(t.url)+"\')")+ib("zip","Scarica la copia del sito","getZip(\'"+s+"\')"):'')+(t.repo?il("repo","Repository",t.repo):'')+'</div></div>';}).join(""):'Ancora nessun viaggio.';
+    placeLoad(j.trips);
   }catch(e){$("arc").textContent=e.message;}
 }
 async function det(slug){
@@ -274,6 +285,17 @@ async function nasImport(){var days=[].slice.call(document.querySelectorAll(".na
   if(!confirm("Porto nell'album del viaggio le foto di "+days.length+" giornate? Le vedranno tutti i partecipanti."))return;
   try{await api("/api/trips/"+NAS.slug+"/nas",{method:"POST",body:{days:days}});nasPoll();}catch(e){alert(e.message);}}
 async function nasPoll(){var b=$("nasGo");if(b)b.disabled=true;for(var i=0;i<900;i++){var j;try{j=await api("/api/trips/"+NAS.slug+"/nas/job");}catch(e){break;}if(!$("nasJob"))return;$("nasJob").textContent=j.status==="run"?(j.msg+" "+j.done+" di "+j.total):j.msg||"";if(j.status!=="run")break;await new Promise(function(z){setTimeout(z,3000);});}if(b)b.disabled=false;}
+var IC=(function(){var s=function(d){return '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+d+'</svg>';};return {
+  open:s('<path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'),
+  info:s('<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5v.5"/>'),
+  nas:s('<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5-8 8"/>'),
+  book:s('<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 8h6"/>'),
+  upd:s('<path d="M20 11a8 8 0 0 0-14.5-4.5L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.5 4.5L20 16"/><path d="M20 20v-4h-4"/>'),
+  key:s('<circle cx="8" cy="14" r="4"/><path d="M11 11l9-9"/><path d="M16 6l3 3"/>'),
+  zip:s('<path d="M12 4v11"/><path d="M7 11l5 5 5-5"/><path d="M5 20h14"/>'),
+  repo:s('<path d="M8 7l-5 5 5 5"/><path d="M16 7l5 5-5 5"/><path d="M13.5 5l-3 14"/>')};})();
+// Foto del luogo: una richiesta per viaggio, tre per volta, senza bloccare l'elenco.
+async function placeLoad(trips){var q=trips.slice(),run=async function(){while(q.length){var t=q.shift();try{var r=await fetch("/api/trips/"+t.slug+"/place",{headers:{"x-admin-pin":PIN}});if(!r.ok)continue;var u=URL.createObjectURL(await r.blob()),e=$("ph_"+t.slug);if(e)e.style.backgroundImage="url("+u+")";}catch(x){}}};run();run();run();}
 var ARC=[], IMP=[], impRun=false;
 function impShow(){var n={wait:"in attesa",run:"in corso",done:"pubblicato",skip:"già in archivio",err:"non riuscito"};
   $("impLog").innerHTML=IMP.map(function(t,i){return '<div class="kv" style="display:block"><b style="display:block">'+esc(t.folder)+(t.title?' · '+esc(t.title):'')+'</b><span><span class="pill '+(t.st==="done"?"g":t.st==="err"?"r":"")+'">'+n[t.st]+'</span>'+esc(t.msg||"")+'</span>'+(t.url?' <a href="'+esc(t.url)+'" target="_blank" rel="noopener">apri</a>':'')+(t.st==="err"&&!impRun?' <button class="btn sec" onclick="impRetry('+i+')">Riprova</button>':'')+'</div>';}).join("");}

@@ -40,6 +40,7 @@ app.post('/api/selftest', admin, async (req, res) => {
     run('gemini', gem.hasGemini(), async () => { const j = await get('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { 'x-goog-api-key': process.env.GEMINI_API_KEY }); const names = (j.models || []).map(m => String(m.name).replace('models/', '')); if (!names.includes(gem.MODEL())) throw new Error('chiave valida, ma il modello ' + gem.MODEL() + ' non è tra quelli disponibili. Modelli immagine disponibili: ' + (names.filter(n => /image/.test(n)).join(', ') || 'nessuno')); return 'chiave valida, modello ' + gem.MODEL() + ' disponibile (la generazione di un\'immagine non è provata qui)'; }),
     run('google', !!process.env.GOOGLE_MAPS_KEY, async () => { const j = await get('https://maps.googleapis.com/maps/api/geocode/json?address=Firenze&key=' + process.env.GOOGLE_MAPS_KEY); if (j.status !== 'OK') throw new Error(j.status + ' ' + (j.error_message || '')); return 'Geocoding attivo (Routes si prova con un viaggio in auto)'; }),
     run('github', gh.hasGitHub(), async () => { const j = await get('https://api.github.com/user', { authorization: 'Bearer ' + process.env.GITHUB_TOKEN, 'user-agent': 'viaggi-madre' }); return 'token valido, utente ' + j.login + (j.login.toLowerCase() === gh.OWNER().toLowerCase() ? '' : ' (GITHUB_OWNER è ' + gh.OWNER() + ': deve essere un\'organizzazione di cui fai parte)'); }),
+    run('luoghi', !!process.env.GOOGLE_MAPS_KEY, async () => { const b = await geoLib.googlePlacePhoto('Firenze, Italia'); return b ? 'Places attivo: foto dei luoghi da Google' : 'Places risponde ma senza foto'; }),
     run('posta', require('./lib/mail').hasMail(), () => require('./lib/mail').check()),
     run('render', rnd.hasRender(), async () => { const j = await get('https://api.render.com/v1/owners?limit=5', { authorization: 'Bearer ' + process.env.RENDER_API_KEY }); const o = (j[0] && (j[0].owner || j[0])) || {}; if (!o.id) throw new Error('nessun workspace'); return 'chiave valida, workspace ' + (o.name || o.id); })
   ]);
@@ -200,6 +201,21 @@ app.get('/api/sync/:slug/doc/:id', trip, async (req, res) => {
   if (!sync.okId(req.params.id)) return res.status(400).end();
   try { const b = await sync.getDoc(req.params.slug, req.params.id); if (!b) return res.status(404).end(); res.set({ 'content-type': 'application/octet-stream', 'cache-control': 'private, max-age=31536000' }).send(b); } catch (e) { res.status(502).end(); }
 });
+// Foto del luogo per l'elenco dell'archivio. Quelle di Google restano solo in memoria (le condizioni di Google non permettono di conservarle); quelle di Wikipedia si salvano nell'archivio.
+const placeCache = new Map();
+app.get('/api/trips/:slug/place', admin, async (req, res) => {
+  try { const slug = req.params.slug; if (!sync.okSlug(slug)) return res.status(400).end();
+    let p = placeCache.get(slug);
+    if (!p) { const t = (await archive.index()).find(x => x.slug === slug); if (!t) return res.status(404).end();
+      const saved = process.env.GOOGLE_MAPS_KEY ? null : await archive.read(slug + '/luogo.webp');
+      p = saved ? { src: 'wikipedia', data: saved } : await geoLib.placePhoto(t.dest || t.title);
+      if (p && p.src === 'wikipedia' && !saved) archive.write(slug + '/luogo.webp', p.data).catch(() => {});
+      placeCache.set(slug, p || { none: true }); }
+    if (!p || p.none) return res.status(404).end();
+    res.set({ 'content-type': 'image/webp', 'cache-control': 'private, max-age=604800', 'x-foto': p.src }).send(p.data);
+  } catch (e) { res.status(502).end(); }
+});
+
 // ---- foto del NAS ----
 const nas = require('./lib/nas');
 app.get('/api/nas', admin, async (req, res) => { try { res.json(await nas.config()); } catch (e) { res.status(502).json({ error: e.message }); } });
