@@ -1,6 +1,6 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 1.5 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 1.6 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
@@ -11,6 +11,16 @@ Il modulo chiede destinazione, città di partenza, date, numero, nomi e foto dei
 Nel modulo, sotto il mezzo di trasporto, si caricano i documenti delle prenotazioni già fatte: biglietti aerei e ferroviari, traghetti, noleggi, conferme d'albergo, in PDF o foto (fino a 8 file, 7,5 MB l'uno). Claude li legge prima di disegnare il viaggio ed estrae tratte, date, orari, sigle, compagnia, numero, codice di prenotazione, passeggeri, posti e alloggio. Questi dati diventano vincoli: le tappe di viaggio del primo e dell'ultimo giorno portano gli orari veri e il resto del programma si adatta. Se la prenotazione di andata è un volo o un treno e nel modulo era indicato un altro mezzo, vale la prenotazione. Le incongruenze che Claude rileva (date fuori dal periodo, passeggeri che non corrispondono) compaiono nel registro della generazione, prima dell'anteprima.
 
 Nella figlia, sezione Arrivo, ogni tratta è un biglietto con orari, codice e passeggeri, e i documenti originali si aprono anche offline. Stanno dentro il contenuto cifrato del viaggio, quindi li vedono solo i partecipanti. Limite: i documenti incorporati non superano circa 4,5 MB in totale; quelli oltre vengono letti ma non allegati. Senza chiave Claude i documenti vengono allegati ma non letti.
+
+## Cosa manca, link di prenotazione, città vicine
+
+Claude confronta le prenotazioni lette con le date del viaggio ed elenca ciò che manca: notti senza alloggio, tratte senza biglietto, trasferimenti, noleggi. La madre costruisce per ogni voce i link diretti, con date e persone già inserite: Booking e Kayak per gli alloggi, Kayak e Google Voli per i voli, Kayak per le auto, Rome2Rio e Google Maps per treni, bus e trasferimenti. Nella figlia stanno in Arrivo, sezione Cosa manca al viaggio, e ogni voce si segna come prenotata per tutto il gruppo. Formati verificati dal browser il 15/11/2026: Booking, Kayak voli, Kayak auto, Rome2Rio. Non verificato: la ricerca di GetYourGuide.
+
+Ogni tappa ha nella scheda il link di prenotazione diretto quando Claude lo conosce, il sito ufficiale, la ricerca di biglietti e visite guidate su GetYourGuide e la scheda Google con orari, recensioni e prenotazione. La vista Tavola raccoglie pranzi e cene con quando prenotare e piano B. In Meta ci sono le città e i luoghi vicini, con attrazioni note e link, e i consigli operativi con spunta.
+
+## Dalla webapp Parigi 2027
+
+Confronto con la versione 9 di Parigi (15/11/2026). Già presenti: programma modificabile con ricalcolo, giornate, mappa, wallet, spese, album, diario, checklist, frasi con pronuncia, scheda Adesso, meteo, avvisi, calendario, stampa, ricerca. Aggiunte nella v1.6: vista Tavola, numero dei taxi in testa a ogni giornata, tappa a sorpresa che si svela da sola, video o reel di apertura, pulsante di installazione, invio dei documenti del wallet, richiamo serale al diario, diario nella stampa, schede pratiche e città vicine nella ricerca, pulsante Sulla mappa nella scheda. Non riportate: la mappa disegnata a mano di Parigi (sostituita dalla mappa interattiva, che vale per ogni destinazione), il visore dei documenti dentro l'app (si aprono in una scheda), lo svelamento della sorpresa con cinque tocchi.
 
 ## Archivio di tutti i viaggi
 
@@ -37,7 +47,9 @@ Direzione scelta da Francesco: Carta d'imbarco. L'intestazione è la carta d'imb
 
 ## Fotolibro stampato (Peecho)
 
-Dalla sezione Foto della figlia un partecipante impagina il fotolibro. La madre compone un PDF A4 orizzontale (297 x 210 mm, senza abbondanze, margini di 14 mm, pagine pari, minimo 24) con copertina a carta d'imbarco, dedica e passeggeri, una apertura per giornata con testo, diario e tappe, le foto in ordine con didascalia, chiusura con le frasi e i numeri del viaggio, pagine di appunti fino al minimo di stampa, retro. I testi sono quelli scritti da Claude con il pulsante dedicato; senza, il libro usa titoli e introduzioni del programma. Il PDF si sfoglia da un link firmato.
+Stile, dalla v1.6: copertina a tinta piatta con il nome della destinazione e l'anno in un carattere grande e pieno e l'illustrazione del simbolo del luogo; interno arioso su fondo chiaro, titoli in serif (Giorno 1, la data in basso), tre dati della giornata con piccoli segni colorati, la prima foto del giorno grande accanto al testo, timbro di viaggio, didascalie in corsivo. Dopo il frontespizio c'è la pagina Il percorso: una mappa schematica disegnata dalle coordinate delle tappe, un colore per giorno. L'illustrazione di copertina la genera Gemini alla creazione del viaggio (il colore di fondo della copertina si legge dall'immagine); senza Gemini la copertina usa un motivo grafico. Caratteri del PDF: Titan One, Cormorant Garamond, DM Sans.
+
+Dalla sezione Foto della figlia un partecipante impagina il fotolibro. La madre compone un PDF A4 orizzontale (297 x 210 mm, senza abbondanze, margini di 18 mm, pagine pari, minimo 24). I testi sono quelli scritti da Claude con il pulsante dedicato; senza, il libro usa titoli e introduzioni del programma. Il PDF si sfoglia da un link firmato.
 
 La stampa la ordina solo l'amministratore, dall'Archivio, pulsante Fotolibro: indirizzo di spedizione, preventivo, approvazione. Il preventivo crea su Peecho un ordine sospeso e mostra libro, spedizione e totale con IVA letti dall'ordine. L'ordine parte in produzione solo con Approva e manda in stampa, che scala il credito prepagato dell'account. Prodotto: copertina rigida A4 orizzontale, carta lucida 200 g, 6,20 € più 0,21 € a pagina all'ingrosso (letto dal pannello il 14/11/2026).
 
@@ -88,7 +100,7 @@ In Impostazioni, il pulsante Prova i collegamenti fa una chiamata minima a Claud
 
 ## Collaudo
 
-`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (40 controlli). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
+`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (45 controlli). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
 
 ## Struttura
 

@@ -54,7 +54,7 @@ app.post('/api/trips', admin, express.json({ limit: '40mb' }), (req, res) => {
   (async () => {
     try {
       const r = await buildTrip(req.body, { log, syncApi: publicUrl(req), taken: async s => (gh.hasGitHub() ? gh.repoExists(s) : [...jobs.values()].some(j => j.published && j.slug === s)) });
-      Object.assign(job, { request: r.inp, files: r.files, trip: r.trip, slug: r.trip.slug, creds: r.creds, users: r.users, status: 'preview' });
+      Object.assign(job, { request: r.inp, files: r.files, trip: r.trip, slug: r.trip.slug, cover: r.cover, creds: r.creds, users: r.users, status: 'preview' });
       if (!gh.hasGitHub()) { await sync.initTrip(job.slug, r.users); job.url = '/preview/' + id + '/'; await archive.saveTrip(job); log('Viaggio registrato nell\'archivio locale.'); }
       log('Anteprima pronta.');
     } catch (e) { job.status = 'error'; job.error = e.message; log('Errore: ' + e.message); }
@@ -172,7 +172,7 @@ app.post('/api/book/:slug/pdf', express.json({ limit: '10kb' }), trip, async (re
   pdfCount.set(k, n + 1);
   try {
     const t = await archive.detail(slug); if (!t) return res.status(404).json({ error: 'Scheda del viaggio non presente in archivio' });
-    t._icon = await archive.read(slug + '/icon.png');
+    t._cover = await archive.read(slug + '/cover.png');
     const r = await buildBook(t, req.trip.state.kv, id => sync.getPhoto(slug, id));
     await sync.putFile(slug, 'book/libro.pdf', r.pdf);
     const meta = { pages: r.pages, photos: r.photos, mb: Math.round(r.pdf.length / 104857.6) / 10, at: Date.now(), by: req.trip.user };

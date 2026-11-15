@@ -202,6 +202,8 @@ hr{border:none;border-top:2px dashed var(--line);margin:14px 0}
 .wdoc button{width:34px;height:34px;border-radius:4px;background:var(--paper2);font:700 11px/1 var(--mono)}
 .intro{position:fixed;inset:0;z-index:1400;background:var(--ink);color:var(--paper);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;transition:opacity .5s}
 .intro img{width:170px;height:170px;border-radius:26px;border:5px solid var(--paper);object-fit:cover}
+#introVid{width:100%;max-width:340px;aspect-ratio:9/16;max-height:58vh;border-radius:14px;overflow:hidden;background:#000;position:relative}
+#introVid iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .intro h1{font:900 54px/.95 var(--disp);text-transform:uppercase;letter-spacing:.02em;margin:18px 0 6px}
 .intro .sub{font:500 11px/1.5 var(--mono);letter-spacing:.14em;text-transform:uppercase}
 .intro .btn{margin-top:18px;background:var(--acc);color:#fff;padding:13px 26px}
@@ -251,7 +253,7 @@ hr{border:none;border-top:2px dashed var(--line);margin:14px 0}
 <div class="intro" id="login" style="display:none;z-index:1450"><img src="icon-512.png" alt="" style="width:120px;height:120px;border-radius:30px"><h1 id="lgT"></h1><div id="lgS" class="sub" style="margin-bottom:16px"></div>
   <div style="width:100%;max-width:320px"><input class="inp" id="lgU" placeholder="Utente" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" style="margin-bottom:8px"><input class="inp" id="lgP" placeholder="Password" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
   <button class="btn full" id="lgB" onclick="doLogin()">Entra</button><div id="lgE" style="font-size:13px;margin-top:10px;min-height:20px"></div><div style="font-size:12.5px;opacity:.8;margin-top:8px">Utente e password te li ha dati chi ha organizzato il viaggio.</div></div></div>
-<div class="intro" id="intro" style="display:none"><img src="icon-512.png" alt=""><h1 id="inT"></h1><div id="inS" class="sub"></div><button class="btn" onclick="closeIntro()">Entra nel viaggio</button></div>
+<div class="intro" id="intro" style="display:none"><div id="introVid" style="display:none"></div><img id="introImg" src="icon-512.png" alt=""><h1 id="inT"></h1><div id="inS" class="sub"></div><button class="btn" onclick="closeIntro()">Entra nel viaggio</button></div>
 <script src="vendor/leaflet.js"></script>
 <script src="app.js"></script>
 </body>

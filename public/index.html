@@ -84,6 +84,11 @@ iframe{width:100%;height:640px;border:1px solid var(--line);border-radius:16px;b
   <div class="row"><div><label>Ritmo</label><select id="style"><option value="equilibrato, giornate piene ma con pause">Equilibrato</option><option value="lento, poche tappe scelte e molto tempo a tavola">Lento</option><option value="intenso, vedere il più possibile">Intenso</option><option value="adatto a bambini, tappe brevi e pause frequenti">Con bambini</option></select></div>
   <div><label>Fascia di spesa</label><select id="budget"><option value="media">Media</option><option value="economica">Economica</option><option value="alta">Alta</option></select></div></div>
 </div>
+<div class="card"><h2>Tocchi personali</h2>
+  <label>Video o reel di apertura (facoltativo)</label><input id="introUrl" placeholder="link Instagram o YouTube: parte all'apertura dell'app">
+  <label>Tappa a sorpresa (facoltativa)</label><textarea id="surpriseText" style="min-height:70px" placeholder="es. cena al ristorante Contraste, 18 rue d'Anjou, offerta da me. I partecipanti la vedono come Sorpresa fino allo svelamento."></textarea>
+  <div class="row"><div><label>Giorno</label><input id="surpriseDate" type="date"></div><div><label>Ora</label><input id="surpriseTime" type="time" value="20:00"></div><div><label>Si svela, ore prima</label><input id="surpriseReveal" type="number" min="0" max="72" value="3"></div></div>
+</div>
 <div class="card"><h2>Indirizzo</h2>
   <label>Nome dell'indirizzo (facoltativo)</label><input id="slug" placeholder="es. praga2026: diventa praga2026.onrender.com">
   <p class="muted" style="margin:8px 0 0">Alla webapp accedono solo i partecipanti indicati sopra: a generazione finita ricevi utente e password di ciascuno, da consegnare a mano.</p>
@@ -139,7 +144,7 @@ function addBk(inp){[].slice.call(inp.files).forEach(function(f){
 });inp.value="";}
 async function generate(){
   var names=[].map.call($("ppl").querySelectorAll("input[type=text]"),function(i){return i.value.trim();});
-  var body={dest:$("dest").value.trim(),origin:$("origin").value.trim(),start:$("start").value,end:$("end").value,mode:MODE,outTime:$("outTime").value,backTime:$("backTime").value,booked:$("booked").value,lodging:$("lodging").value,program:$("program").value,style:$("style").value,budget:$("budget").value,slug:$("slug").value,bookings:BK,
+  var body={dest:$("dest").value.trim(),origin:$("origin").value.trim(),start:$("start").value,end:$("end").value,mode:MODE,outTime:$("outTime").value,backTime:$("backTime").value,booked:$("booked").value,lodging:$("lodging").value,program:$("program").value,style:$("style").value,budget:$("budget").value,slug:$("slug").value,bookings:BK,introUrl:$("introUrl").value,surpriseText:$("surpriseText").value,surpriseDate:$("surpriseDate").value,surpriseTime:$("surpriseTime").value,surpriseReveal:$("surpriseReveal").value,
     refs:$("refs").value.split("\n").map(function(l){l=l.trim();var m=l.match(/https?:\/\/\S+/);return l?{t:m?l.replace(m[0],"").trim():"",u:m?m[0]:l}:null;}).filter(Boolean),
     people:names.map(function(n,i){return {name:n,photo:PH[i]||null};})};
   if(!body.dest||!body.start||!body.end)return alert("Servono destinazione e date.");
@@ -192,7 +197,7 @@ function copyCred(i){var f=function(c){return "Ciao "+c.name+", la webapp del vi
   if(navigator.clipboard)navigator.clipboard.writeText(t).then(function(){alert("Copiato");},function(){prompt("Copia:",t);});else prompt("Copia:",t);}
 async function newCreds(slug,url){if(!confirm("Genero credenziali nuove per "+slug+"? Quelle attuali smettono di funzionare per tutti i partecipanti."))return;
   try{var j=await api("/api/trips/"+slug+"/credentials",{method:"POST"});$("arcCred").innerHTML=credCard(j.creds,url);$("arcCred").scrollIntoView();}catch(e){alert(e.message);}}
-function again(reset){$("jobBox").classList.add("hide");$("formBox").classList.remove("hide");if(reset){["dest","start","end","outTime","backTime","booked","lodging","program","refs","slug"].forEach(function(i){$(i).value="";});PH={};BK=[];bkRender();people();}window.scrollTo(0,0);}
+function again(reset){$("jobBox").classList.add("hide");$("formBox").classList.remove("hide");if(reset){["dest","start","end","outTime","backTime","booked","lodging","program","refs","slug","introUrl","surpriseText","surpriseDate"].forEach(function(i){$(i).value="";});PH={};BK=[];bkRender();people();}window.scrollTo(0,0);}
 async function archive(){
   try{var j=await api("/api/trips");
     $("arcWhere").textContent=j.permanent?"Conservato in modo permanente nel repository privato "+j.where+": scheda completa, richiesta originale e copia del sito di ogni viaggio.":"Attenzione: senza GitHub l'archivio sta in una cartella locale e sul piano gratuito di Render si perde a ogni riavvio. Configura GITHUB_TOKEN per renderlo permanente.";
