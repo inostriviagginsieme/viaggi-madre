@@ -1,6 +1,6 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 1.8 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 1.8.1 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
@@ -23,6 +23,10 @@ Dalla v1.7.1 i biglietti caricati alla creazione del viaggio compaiono anche nel
 La linguetta Arrivo si chiama Prenotazioni e raccoglie tutto ciò che riguarda prenotare e documentare il viaggio: cosa manca, le voci da prenotare (prima sotto Altro), le prenotazioni lette, l'alloggio, i percorsi e i Documenti del gruppo (il wallet, prima sotto Altro).
 
 I documenti aggiunti da un telefono non restano più su quel telefono. La scheda del documento (nome, tipo, tappa, chi l'ha caricato) viaggia con i dati condivisi, chiave `doc.<id>`; il file viene cifrato sul telefono con la chiave del viaggio (AES-256-GCM) e depositato nella madre (`PUT` e `GET /api/sync/:slug/doc/:id`, ramo `data` del repository del viaggio, cartella `docs/`). Gli altri telefoni lo scaricano alla sincronizzazione successiva, lo decifrano e lo tengono disponibile offline. La madre e GitHub conservano solo il file cifrato. Chi elimina un documento lo elimina per tutti i telefoni; il file cifrato resta nel ramo `data`. Limite: 10 MB per documento, oltre resta solo sul telefono che l'ha caricato. I documenti già presenti su un telefono prima della v1.8 vengono condivisi alla prima sincronizzazione.
+
+## Aggiornare una figlia già pubblicata (v1.8.1)
+
+Le figlie sono siti a sé: una modifica alla madre non le cambia da sola. In Archivio, sul viaggio, il pulsante Aggiorna l'app sostituisce nel repository del viaggio solo il codice (`pwa/index.html`, `pwa/app.js`, `pwa/sw.js`). Programma cifrato, credenziali, immagini e dati del gruppo (spese, foto, diario, documenti) non vengono toccati e Claude non viene chiamato. Render ripubblica il sito in uno o due minuti; sui telefoni: Altro, Aggiorna. Le funzioni che dipendono da contenuti generati (per esempio le Altre mete) richiedono comunque un viaggio generato con la versione nuova.
 
 ## Altre mete (v1.7)
 
@@ -116,7 +120,7 @@ In Impostazioni, il pulsante Prova i collegamenti fa una chiamata minima a Claud
 
 ## Collaudo
 
-`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (57 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
+`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (59 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
 
 ## Struttura
 

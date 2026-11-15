@@ -98,6 +98,19 @@ app.post('/api/jobs/:id/publish', admin, (req, res) => {
 
 // ---- archivio permanente di tutti i viaggi ----
 app.get('/api/trips', admin, async (req, res) => { try { res.json({ trips: await archive.index(), permanent: gh.hasGitHub(), where: gh.hasGitHub() ? gh.OWNER() + '/' + archive.REPO() : 'cartella locale' }); } catch (e) { res.status(502).json({ error: e.message }); } });
+// Porta una figlia già pubblicata all'ultima versione dell'app senza rigenerare il viaggio: niente Claude, nessun dato toccato.
+app.post('/api/trips/:slug/update', admin, async (req, res) => {
+  const slug = req.params.slug;
+  if (!sync.okSlug(slug)) return res.status(400).json({ error: 'Viaggio non valido' });
+  if (!gh.hasGitHub()) return res.status(400).json({ error: 'Manca la configurazione GitHub: l\'aggiornamento si fa solo sui viaggi pubblicati.' });
+  try {
+    const [ix, sw] = await Promise.all([gh.getFile(slug, 'pwa/index.html', 'main'), gh.getFile(slug, 'pwa/sw.js', 'main')]);
+    if (!ix || !sw) return res.status(404).json({ error: 'Repository del viaggio non trovato o senza sito.' });
+    const files = require('./lib/build').updateFiles(slug, ix.toString(), sw.toString());
+    await gh.commitFiles(slug, 'main', files, 'Aggiornamento dell\'app alla versione ' + require('./package.json').version);
+    res.json({ ok: true, version: require('./package.json').version });
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
 app.post('/api/trips/manual', admin, express.json({ limit: '100kb' }), async (req, res) => {
   try {
     const b = req.body || {}, s = (v, n) => String(v == null ? '' : v).trim().slice(0, n), slug = s(b.slug, 40).toLowerCase().replace(/[^a-z0-9-]/g, '');
