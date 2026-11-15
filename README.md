@@ -1,6 +1,6 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 2.1 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 2.1.1 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
@@ -50,7 +50,7 @@ Importazione in blocco. In Archivio, Importa i viaggi passati: si carica un pacc
 
 ## Archivio compatto (v2.1)
 
-L'elenco dell'Archivio occupa una riga per viaggio: foto del luogo, titolo, date e partecipanti, e a destra le azioni come icone con il nome al passaggio del mouse (apri il sito, scheda, foto dal NAS, fotolibro, aggiorna l'app, nuove credenziali, copia del sito, repository). La foto del luogo arriva da Google (Places API New, con la stessa GOOGLE_MAPS_KEY: l'API va attivata sul progetto Google Cloud); se Places non è attivo si usa Wikipedia, e in mancanza l'icona dell'app. Le foto di Google restano solo in memoria e nella cache del browser, perché le condizioni di Google non ne permettono la conservazione. Prova i collegamenti ha la voce Luoghi, che dice se Places risponde.
+L'elenco dell'Archivio è ordinato dal viaggio più recente al meno recente e diviso per anni, con una riga per viaggio: foto del luogo, titolo, date e partecipanti, e a destra le azioni come icone con il nome al passaggio del mouse (apri il sito, scheda, foto dal NAS, fotolibro, aggiorna l'app, nuove credenziali, copia del sito, repository). La foto del luogo arriva da Google (Places API New, con la stessa GOOGLE_MAPS_KEY: l'API va attivata sul progetto Google Cloud); se Places non è attivo si usa Wikipedia, e in mancanza l'icona dell'app. Le foto di Google restano solo in memoria e nella cache del browser, perché le condizioni di Google non ne permettono la conservazione. Prova i collegamenti ha la voce Luoghi, che dice se Places risponde.
 
 ## Foto del NAS (v2.0)
 
@@ -148,7 +148,7 @@ In Impostazioni, il pulsante Prova i collegamenti fa una chiamata minima a Claud
 
 ## Collaudo
 
-`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (84 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
+`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (85 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
 
 ## Struttura
 

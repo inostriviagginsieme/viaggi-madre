@@ -1,6 +1,6 @@
 {
   "name": "viaggi-madre",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "private": true,
   "description": "I nostri viaggi insieme: webapp madre che genera una webapp figlia per ogni viaggio",
   "main": "server.js",

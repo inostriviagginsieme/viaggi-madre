@@ -162,6 +162,7 @@ await A.click('#nav button[data-t="s-viaggio"]'); await A.click('#vChips .chip >
     r = await fetch(B + '/api/trips/' + j.slug + '/zip'); ok(r.status === 401, 'archivio riservato all\'amministratore');
     await M.fill('#mSlug', 'parigi2027'); await M.fill('#mTitle', 'Parigi 2027'); await M.fill('#mStart', '2027-06-17'); await M.fill('#mEnd', '2027-06-20'); await M.fill('#mPeople', 'Rosetta, Concetta'); await M.click('text=Aggiungi all\'archivio'); await sleep(800);
     ok((await M.textContent('#arc')).indexOf('Parigi 2027') < (await M.textContent('#arc')).indexOf('Praga') && (await M.textContent('#arc')).includes('Rosetta'), 'viaggio esterno aggiunto e ordinato per data');
+    { const ys = await M.$$eval('#arc .yr b', e => e.map(x => x.textContent)), tx = await M.textContent('#arc'); ok(ys.join(',') === '2027,2026,2019' && tx.indexOf('Parigi 2027') < tx.indexOf('Praga') && tx.indexOf('Praga') < tx.indexOf('Berlino'), 'archivio ordinato dal più recente, diviso per anni (' + ys.join(',') + ')'); }
     await M.screenshot({ path: '/tmp/shot-archivio.png', fullPage: true });
     ok(!errs.some(e => e.startsWith('madre')), 'nessun errore JavaScript nella madre' + errs.filter(e => e.startsWith('madre')).join(' ; '));
     await M.click('#arc .trip:has-text("Praga") [title="Nuove credenziali"]'); await sleep(2500); ok((await M.textContent('#arcCred')).includes('carla'), 'nuove credenziali dalla madre');

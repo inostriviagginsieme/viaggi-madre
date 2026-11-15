@@ -45,6 +45,10 @@ textarea{min-height:110px;resize:vertical}
 .trip .bd b{font-size:14.5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trip .bd span.muted{display:block;font-size:12px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .trip .tg{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:1px;opacity:.75}
+.yr{display:flex;align-items:baseline;gap:8px;margin:14px 0 2px;padding-bottom:4px;border-bottom:2px solid var(--line)}
+.yr:first-child{margin-top:4px}
+.yr b{font-size:17px;letter-spacing:.02em}
+.yr span{font-size:11.5px;opacity:.65}
 .ibs{display:flex;gap:2px;flex:0 0 auto}
 .ib{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:7px;border:0;background:transparent;color:inherit;cursor:pointer;padding:0;opacity:.72}
 .ib:hover,.ib:focus-visible{background:var(--linen);opacity:1}
@@ -219,9 +223,10 @@ function again(reset){$("jobBox").classList.add("hide");$("formBox").classList.r
 async function archive(){
   try{var j=await api("/api/trips");
     $("arcWhere").textContent=j.permanent?"Conservato in modo permanente nel repository privato "+j.where+": scheda completa, richiesta originale e copia del sito di ogni viaggio.":"Attenzione: senza GitHub l'archivio sta in una cartella locale e sul piano gratuito di Render si perde a ogni riavvio. Configura GITHUB_TOKEN per renderlo permanente.";
-    ARC=j.trips;
-    $("arc").innerHTML=j.trips.length?j.trips.map(function(t){var s=esc(t.slug), ib=function(k,tt,act){return '<button class="ib" title="'+tt+'" aria-label="'+tt+'" onclick="'+act+'">'+IC[k]+'</button>';}, il=function(k,tt,u){return '<a class="ib" title="'+tt+'" aria-label="'+tt+'" href="'+esc(u)+'" target="_blank" rel="noopener">'+IC[k]+'</a>';};
-      return '<div class="trip"><div class="ph" id="ph_'+s+'"'+(t.icon?' style="background-image:url('+esc(t.icon)+')"':'')+'></div>'+
+    j.trips.sort(function(a,b){return String(b.start||"").localeCompare(String(a.start||""))||String(a.title||"").localeCompare(String(b.title||""));});ARC=j.trips;
+    var yr=function(t){return String(t.start||"").slice(0,4)||"Senza data";}, cnt={}, last="";j.trips.forEach(function(t){cnt[yr(t)]=(cnt[yr(t)]||0)+1;});
+    $("arc").innerHTML=j.trips.length?j.trips.map(function(t){var s=esc(t.slug), y=yr(t), hd=y!==last?'<div class="yr"><b>'+esc(y)+'</b><span>'+cnt[y]+(cnt[y]===1?" viaggio":" viaggi")+'</span></div>':"";last=y; ib=function(k,tt,act){return '<button class="ib" title="'+tt+'" aria-label="'+tt+'" onclick="'+act+'">'+IC[k]+'</button>';}, il=function(k,tt,u){return '<a class="ib" title="'+tt+'" aria-label="'+tt+'" href="'+esc(u)+'" target="_blank" rel="noopener">'+IC[k]+'</a>';};
+      return hd+'<div class="trip"><div class="ph" id="ph_'+s+'"'+(t.icon?' style="background-image:url('+esc(t.icon)+')"':'')+'></div>'+
       '<div class="bd"><b>'+esc(t.title)+(t.past?' <span class="tg">ricordo</span>':'')+'</b><span class="muted">'+esc(t.dateLabel)+' · '+esc((t.people||[]).join(", "))+(t.generated?' · '+t.days+' gg, '+t.stops+' tappe':'')+'</span></div>'+
       '<div class="ibs">'+(t.url?il("open","Apri il sito",t.url):'')+(t.generated?ib("info","Scheda","det(\'"+s+"\')")+ib("nas","Foto dal NAS","nasTrip(\'"+s+"\')")+ib("book","Fotolibro","printBox(\'"+s+"\')")+ib("upd","Aggiorna l\'app","updApp(\'"+s+"\')")+ib("key","Nuove credenziali","newCreds(\'"+s+"\',\'"+esc(t.url)+"\')")+ib("zip","Scarica la copia del sito","getZip(\'"+s+"\')"):'')+(t.repo?il("repo","Repository",t.repo):'')+'</div></div>';}).join(""):'Ancora nessun viaggio.';
     placeLoad(j.trips);
