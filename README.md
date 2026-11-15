@@ -1,6 +1,6 @@
 # I nostri viaggi insieme · webapp madre
 
-Versione 1.7 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
+Versione 1.8 (15 novembre 2026). La madre raccoglie i dati di un viaggio e genera una webapp figlia con indirizzo proprio: un repository GitHub e uno Static Site Render per ogni viaggio. Alla madre accede solo l'amministratore, con PIN. Alle figlie accedono solo i partecipanti, ciascuno con utente e password rilasciati dalla madre.
 
 ## Cosa fa la madre
 
@@ -15,6 +15,14 @@ Nella figlia, sezione Arrivo, ogni tratta è un biglietto con orari, codice e pa
 ## Prenotazioni aggiunte dal wallet della figlia (v1.7)
 
 Quando un partecipante carica un documento nel wallet della figlia (PDF o immagine), la figlia lo manda alla madre (`POST /api/wallet/:slug/read`, autenticata con il token del viaggio), Claude lo legge e la figlia applica il risultato per tutto il gruppo: le tappe prenotate entrano nel programma del giorno giusto all'orario prenotato (check-in, check-out, voli, treni, ingressi con orario), oppure sostituiscono la tappa già prevista che coprono; un alloggio diventa il punto di partenza e di rientro delle giornate comprese tra arrivo e partenza; la voce corrispondente di Cosa manca viene chiusa; la prenotazione compare in Arrivo con codice e avvertenze. Ogni lettura resta nel wallet con il riepilogo di ciò che ha cambiato e un pulsante Annulla che riporta il programma com'era. Se il documento non riguarda il viaggio (date o luogo diversi) la figlia lo conserva nel wallet e non tocca il programma. Serve la madre sveglia: su piano gratuito la prima lettura dopo una pausa può richiedere fino a un minuto.
+
+Dalla v1.7.1 i biglietti caricati alla creazione del viaggio compaiono anche nella scheda della tappa a cui si riferiscono (stesso giorno e orario dentro la tappa, oppure stesse sigle di partenza e arrivo), con il pulsante Apri. L'abbinamento lo fa la figlia, senza Claude. La conferma dell'alloggio caricata alla creazione non è ancora abbinata alle tappe di check-in.
+
+## Prenotazioni e documenti del gruppo (v1.8)
+
+La linguetta Arrivo si chiama Prenotazioni e raccoglie tutto ciò che riguarda prenotare e documentare il viaggio: cosa manca, le voci da prenotare (prima sotto Altro), le prenotazioni lette, l'alloggio, i percorsi e i Documenti del gruppo (il wallet, prima sotto Altro).
+
+I documenti aggiunti da un telefono non restano più su quel telefono. La scheda del documento (nome, tipo, tappa, chi l'ha caricato) viaggia con i dati condivisi, chiave `doc.<id>`; il file viene cifrato sul telefono con la chiave del viaggio (AES-256-GCM) e depositato nella madre (`PUT` e `GET /api/sync/:slug/doc/:id`, ramo `data` del repository del viaggio, cartella `docs/`). Gli altri telefoni lo scaricano alla sincronizzazione successiva, lo decifrano e lo tengono disponibile offline. La madre e GitHub conservano solo il file cifrato. Chi elimina un documento lo elimina per tutti i telefoni; il file cifrato resta nel ramo `data`. Limite: 10 MB per documento, oltre resta solo sul telefono che l'ha caricato. I documenti già presenti su un telefono prima della v1.8 vengono condivisi alla prima sincronizzazione.
 
 ## Altre mete (v1.7)
 
@@ -108,7 +116,7 @@ In Impostazioni, il pulsante Prova i collegamenti fa una chiamata minima a Claud
 
 ## Collaudo
 
-`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (51 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
+`npm test` avvia la madre senza chiavi, genera un viaggio di prova e verifica con due telefoni simulati accesso, cifratura, sincronizzazione, conti, mappa, foto, archivio e rigenerazione delle credenziali (57 controlli, compresi lettura di una prenotazione dal wallet, inserimento in programma all'orario prenotato e annullamento). Non sono collaudate in questa versione le chiamate reali a Claude, Gemini, Google, GitHub e Render: richiedono le chiavi.
 
 ## Struttura
 

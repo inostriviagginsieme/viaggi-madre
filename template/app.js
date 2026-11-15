@@ -97,7 +97,7 @@ function nowCard(){
     if(now>ret)return box("Viaggio concluso",'<h3>'+esc(T.title)+'</h3><div class="muted">Le foto stanno in Foto, il diario pure: è il momento del fotolibro.</div>');
     var dd=Math.ceil((dep-now)/86400000), todo=(T.todo||[]).filter(function(t){return !g("todo."+t.id)&&t.pri===1;}).length;
     return box("Imbarco tra "+dd+" giorn"+(dd===1?"o":"i"),'<h3>Si parte '+esc(dlabel(DAYS[0]).toLowerCase())+'</h3><div class="muted">'+(todo?todo+' prenotazioni urgenti ancora da fare.':'Le prenotazioni urgenti sono tutte spuntate.')+' Nei giorni del viaggio qui compaiono la tappa in corso e la prossima.</div>'+
-      '<div class="row" style="margin-top:10px"><button class="btn sec" onclick="go(\'s-altro\')">Prenotazioni</button><button class="btn sec" onclick="vTab=0;go(\'s-viaggio\')">'+esc(dshort(DAYS[0]))+'</button></div>');
+      '<div class="row" style="margin-top:10px"><button class="btn sec" onclick="go(\'s-arrivo\')">Prenotazioni</button><button class="btn sec" onclick="vTab=0;go(\'s-viaggio\')">'+esc(dshort(DAYS[0]))+'</button></div>');
   }
   var D=DAYS[nr.day], h="";
   if(nr.cur)h+='<h3>'+esc(nr.cur.p.n)+'</h3><div class="muted">dalle '+hhmm(nr.cur.st)+(nr.cur.p.sub?' · '+esc(nr.cur.p.sub):'')+'</div>';
@@ -206,6 +206,18 @@ function moveTo(from,id,to){
   put("plan",P);put("parked",K);closeSheet();renderViaggio();toast(to==="parked"?"Tolta: la ritrovi tra le tappe da parte":"Spostata. Orari e mappa aggiornati");
 }
 function shift(day,id,dir){var P=plan(),a=P[day],i=a.indexOf(id),j=i+dir;if(i<0||j<0||j>=a.length)return closeSheet();a[i]=a[j];a[j]=id;put("plan",P);closeSheet();renderViaggio();}
+/* Biglietti caricati alla creazione del viaggio che riguardano questa tappa: stesso giorno e orario dentro la tappa, oppure stesse sigle di partenza e arrivo. */
+function tripBk(id){
+  var p=POI[id]; if(!p||p.kind!=="fix"||!(T.docs||[]).length)return [];
+  var P=plan(), D=DAYS.filter(function(x){return (P[x.id]||[]).indexOf(id)>=0;})[0]; if(!D)return [];
+  var r=schedule(D).rows.filter(function(x){return x.id===id;})[0], st=r?r.st:toMin(p.at), en=st+(p.min||30), tx=norm(p.n+" "+(p.sub||""));
+  var seen={};
+  return ((T.transport||{}).bookings||[]).filter(function(b){
+    if(!b.doc||!T.docs[b.doc-1]||seen[b.doc])return false;
+    var inT=function(d,t){return d===D.date&&t&&toMin(t)>=st-30&&toMin(t)<=en+30;};
+    var codes=b.fromCode&&b.toCode&&b.date===D.date&&tx.indexOf(norm(b.fromCode))>=0&&tx.indexOf(norm(b.toCode))>=0;
+    var ok=codes||inT(b.date,b.dep)||inT(b.arrDate||b.date,b.arr); if(ok)seen[b.doc]=1; return ok;});
+}
 function detail(id){
   var p=vp(id), h='<div class="grab"></div><h3>'+esc(p.n)+'</h3><div class="muted small" style="margin:4px 0 10px">'+esc(p.sub||"")+'</div><div style="font-size:14.5px;line-height:1.5">'+esc(p.desc||"")+'</div><div style="margin-top:12px">';
   if(p.priceTxt)h+='<div class="kv"><b>Costo</b><span>'+esc(p.priceTxt)+'</span></div>';
@@ -215,7 +227,8 @@ function detail(id){
   if(p.alt)h+='<div class="kv"><b>Piano B</b><span>'+esc(p.alt)+'</span></div>';
   h+='</div>'+(p.tip?'<div class="tip"><b>Da sapere</b>'+esc(p.tip)+'</div>':"");
   if(!p.masked){
-    WDOCS.filter(function(d){return d.poi===id;}).forEach(function(d){h+=docRow(d);});
+    wd().filter(function(d){return d.poi===id;}).forEach(function(d){h+=docRow(d);});
+    tripBk(id).forEach(function(b){var dd=b.date.slice(8)+"/"+b.date.slice(5,7);h+='<div class="wdoc"><div><span class="pill b">'+((T.docs[b.doc-1].type==="application/pdf")?"PDF":"FOTO")+'</span></div><div class="bd"><b>'+esc(T.docs[b.doc-1].name)+'</b><div class="muted small">'+esc(["Biglietto del "+dd,[b.carrier,b.number].filter(Boolean).join(" "),b.pnr?"prenotazione "+b.pnr:""].filter(Boolean).join(" · "))+'</div></div><button onclick="openTripDoc('+(b.doc-1)+')">Apri</button></div>';});
     if(p.book)h+='<a class="btn full" style="margin-top:12px" href="'+safeUrl(p.book)+'" target="_blank" rel="noopener">Prenota adesso</a>';
     if(p.url)h+='<a class="btn '+(p.book?"sec ":"")+'full" style="margin-top:8px" href="'+safeUrl(p.url)+'" target="_blank" rel="noopener">'+esc(p.urlTxt||"Sito ufficiale")+'</a>';
     if(p.kind==="see")h+='<a class="btn sec full" style="margin-top:8px" href="'+gyg(p.n)+'" target="_blank" rel="noopener">Biglietti e visite guidate (GetYourGuide)</a>';
@@ -302,7 +315,26 @@ function renderMeta(){
   $("s-meta").innerHTML=h;
 }
 
-/* ============ ARRIVO ============ */
+/* ============ PRENOTAZIONI (sezione s-arrivo) ============ */
+function todoHtml(){
+  var h='<div class="tt">Da prenotare</div><div class="card">', pri=0;
+  (T.todo||[]).slice().sort(function(a,b){return a.pri-b.pri;}).forEach(function(t){
+    if(t.pri!==pri){pri=t.pri;h+='<h4 style="margin-top:10px">'+(pri===1?"Subito":pri===2?"Nelle prossime settimane":"Prima di partire")+'</h4>';}
+    var dn=g("todo."+t.id);h+='<div class="ck'+(dn?" done":"")+'" onclick="put(\'todo.'+t.id+'\','+(dn?0:1)+');renderArrivo()"><div class="box">'+(dn?"✓":"")+'</div><div class="bd"><b>'+esc(t.t)+'</b><div class="muted small">'+esc(t.d||"")+'</div>'+(t.u?'<a class="small" href="'+safeUrl(t.u)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">'+esc(t.uTxt||"apri il link")+'</a>':"")+'</div></div>';});
+  if(!(T.todo||[]).length)h+='<div class="muted small">Niente da prenotare.</div>';
+  return h+'</div>';
+}
+function walletHtml(){
+  var h='<div class="tt">Documenti del gruppo</div><div class="card"><p class="muted small" style="margin:0 0 8px">'+(syncOn()?'Biglietti, conferme e documenti di tutti: chiunque ne aggiunga uno, lo ricevono tutti i partecipanti e resta disponibile offline. I file viaggiano cifrati con la chiave del viaggio.':'PDF o foto di biglietti e prenotazioni, salvati su questo telefono e disponibili offline.')+' Si agganciano a una tappa dalla sua scheda.</p>';
+  (T.docs||[]).forEach(function(d,i){h+='<div class="wdoc"><div><span class="pill b">'+(d.type==="application/pdf"?"PDF":"FOTO")+'</span></div><div class="bd"><b>'+esc(d.name)+'</b><div class="muted small">Caricato alla creazione del viaggio</div></div><button onclick="openTripDoc('+i+')">Apri</button></div>';});
+  wd().forEach(function(d){h+=docRow(d);});
+  h+='<button class="btn full" onclick="pickDocFor(\'\')">Aggiungi biglietto o prenotazione</button><p class="muted small" style="margin:8px 0 0">'+(syncOn()?'Ogni prenotazione aggiunta qui viene letta: la tappa entra nel programma del gruppo al giorno e all\'ora giusti, e se copre una voce mancante la chiude.':'La lettura automatica richiede il collegamento con la webapp madre.')+'</p>';
+  var WL=keys("wlog.").map(function(k){return Object.assign({id:k.slice(5)},KV[k].v);}).sort(function(a,b){return b.ts-a.ts;});
+  if(WL.length){h+='<h4 style="margin-top:14px">Lette e messe in programma</h4>';WL.forEach(function(x){h+='<div class="kv" style="display:block"><b style="display:block;width:auto;color:var(--ink);font:700 14px/1.3 var(--body);text-transform:none;letter-spacing:0">'+esc(x.name)+'</b><span class="muted small" style="display:block;margin:2px 0 4px">'+esc(x.summary||"")+'</span><span class="small" style="display:block">'+(x.lines||[]).map(esc).join("<br>")+'</span><button class="btn ghost" style="padding:6px 9px;margin-top:6px" onclick="if(confirm(\'Annullo le modifiche al programma portate da questa prenotazione?\'))undoWallet(\''+x.id+'\')">Annulla le modifiche</button></div>';});}
+  h+='</div>';
+  return h;
+}
+
 function openTripDoc(i){var d=(T.docs||[])[i];if(!d)return;try{var b=atob(d.data.split(",")[1]),u=new Uint8Array(b.length);for(var k=0;k<b.length;k++)u[k]=b.charCodeAt(k);var w=window.open(URL.createObjectURL(new Blob([u],{type:d.type})),"_blank");if(!w)toast("Il telefono ha bloccato la finestra: consenti i popup");}catch(e){toast("Documento non leggibile");}}
 function renderArrivo(){
   var X=T.transport||{}, ico={volo:"✈️",treno:"🚆",auto:"🚗"}[X.mode]||"🧭";
@@ -314,6 +346,7 @@ function renderArrivo(){
       h+='<div class="card"'+(dn?' style="opacity:.6"':'')+'><div class="pill '+(dn?"g":"r")+'" style="margin-bottom:7px">'+esc(x.kind)+' · '+esc(dd(x.date)+(x.dateEnd&&x.dateEnd!==x.date?" → "+dd(x.dateEnd):""))+(dn?" · fatto":"")+'</div><b style="display:block;font-size:15.5px">'+esc(x.t)+'</b><div style="font-size:13.5px;margin-top:5px">'+esc(x.d)+'</div>'+
         (dn?'':(x.links||[]).map(function(l,k){return '<a class="btn '+(k?"sec ":"")+'full" style="margin-top:8px" href="'+safeUrl(l.u)+'" target="_blank" rel="noopener">'+esc(l.t)+'</a>';}).join(""))+
         '<button class="btn ghost full" style="margin-top:8px" onclick="put(\'gap.'+i+'\','+(dn?0:1)+');renderArrivo()">'+(dn?"Riapri: non è ancora prenotato":"Segna come prenotato")+'</button></div>';});}
+  if((T.todo||[]).length)h+=todoHtml();
   h+='<div class="card"><div class="kv"><b>Andata</b><span>'+esc(P.out||"")+'</span></div><div class="kv"><b>Ritorno</b><span>'+esc(P.back||"")+'</span></div><div class="kv"><b>Persone</b><span>'+T.people.length+'</span></div>'+(X.booked?'<div class="tip"><b>Già prenotato</b>'+esc(X.booked)+'</div>':'');
   (X.links||[]).forEach(function(l,i){h+='<a class="btn '+(i?"sec ":"")+'full" style="margin-top:8px" href="'+safeUrl(l.u)+'" target="_blank" rel="noopener">'+esc(l.t)+'</a>';});
   if(X.linkNote)h+='<p class="muted small" style="margin:8px 0 0">'+esc(X.linkNote)+'</p>';
@@ -327,7 +360,7 @@ function renderArrivo(){
     h+='<p class="muted small">Dati letti da Claude dai documenti caricati: controllali una volta sul documento originale.</p>';}
   keys("lodg.").forEach(function(k){var x=KV[k].v,dd=function(d){return d.slice(8)+"/"+d.slice(5,7);};h+='<div class="tt">Alloggio dal '+esc(dd(x.from))+' al '+esc(dd(x.to))+'</div><div class="card"><b>'+esc(x.n)+'</b><div class="muted small">'+esc(x.addr||"")+'</div><div class="kv" style="margin-top:6px"><b>Check-in</b><span>'+esc(dd(x.from)+(x.checkin?" dalle "+x.checkin:""))+'</span></div><div class="kv"><b>Check-out</b><span>'+esc(dd(x.to)+(x.checkout?" entro le "+x.checkout:""))+'</span></div>'+(x.pnr?'<div class="kv"><b>Prenotazione</b><span>'+esc(x.pnr)+'</span></div>':'')+(x.note?'<div style="font-size:13px;margin-top:6px">'+esc(x.note)+'</div>':'')+(geo(x)?'<a class="btn sec full" style="margin-top:8px" href="https://www.google.com/maps/search/?api=1&query='+x.lat+','+x.lon+'" target="_blank" rel="noopener">Apri in Google Maps</a>':'')+'</div>';});
   var LB=X.lodgingBooking; if(LB&&LB.name)h+='<div class="tt">Alloggio prenotato</div><div class="card"><b>'+esc(LB.name)+'</b><div class="muted small">'+esc(LB.address||"")+'</div><div class="kv" style="margin-top:6px"><b>Check-in</b><span>'+esc(LB.checkin||"")+'</span></div><div class="kv"><b>Check-out</b><span>'+esc(LB.checkout||"")+'</span></div>'+(LB.pnr?'<div class="kv"><b>Prenotazione</b><span>'+esc(LB.pnr)+'</span></div>':'')+(LB.notes?'<div style="font-size:13px;margin-top:6px">'+esc(LB.notes)+'</div>':'')+'</div>';
-  if((T.docs||[]).length){h+='<div class="tt">Documenti di viaggio</div><div class="card">';T.docs.forEach(function(d,i){h+='<div class="wdoc"><div><span class="pill">'+(d.type==="application/pdf"?"PDF":"FOTO")+'</span></div><div class="bd"><b>'+esc(d.name)+'</b></div><button onclick="openTripDoc('+i+')">Apri</button></div>';});h+='<p class="muted small" style="margin:8px 0 0">Caricati da chi ha organizzato il viaggio, disponibili anche offline per tutti i partecipanti.</p></div>';}
+  h+=walletHtml();
   if((X.routes||[]).length){h+='<div class="tt">Le strade, da Google</div>';
     X.routes.forEach(function(r,i){h+='<div class="card"><div style="display:flex;gap:8px;align-items:center"><b style="flex:1">'+(i===0?"Consigliata: ":"")+esc(r.summary||("Percorso "+(i+1)))+'</b>'+pill(Math.round(r.km)+" km","b")+pill(dur(r.min),"y")+'</div>'+(r.toll?'<div class="muted small" style="margin-top:4px">Pedaggi stimati: '+esc(r.toll)+'</div>':'')+(r.note?'<div class="muted small" style="margin-top:4px">'+esc(r.note)+'</div>':'')+(r.url?'<a class="btn sec full" style="margin-top:8px" href="'+safeUrl(r.url)+'" target="_blank" rel="noopener">Apri in Google Maps</a>':'')+'</div>';});}
   if((X.options||[]).length){h+='<div class="tt">Le opzioni, in ordine di convenienza</div>';
@@ -421,7 +454,7 @@ function exportCsv(){
 }
 
 /* ============ FOTO, DIARIO, FOTOLIBRO ============ */
-var DB=null, useMem=false, MEM={p:{},d:{}}, BLOBS={}, albumFilter="all", curPhoto=null, WDOCS=[];
+var DB=null, useMem=false, MEM={p:{},d:{}}, BLOBS={}, albumFilter="all", curPhoto=null, WDOCS=[], LD={}, TKEY=null;
 function openDB(){return new Promise(function(res){try{if(!window.indexedDB){useMem=true;return res();}
   var rq=indexedDB.open("viaggio_"+T.slug,1);
   rq.onupgradeneeded=function(){var db=rq.result;if(!db.objectStoreNames.contains("p"))db.createObjectStore("p",{keyPath:"id"});if(!db.objectStoreNames.contains("d"))db.createObjectStore("d",{keyPath:"id"});};
@@ -553,17 +586,39 @@ function makeZip(files){
 function dl(blob,name){var u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){a.remove();URL.revokeObjectURL(u);},1200);}
 
 /* ============ WALLET (solo su questo telefono) ============ */
-async function loadDocs(){var arr=await dbAll("d");arr.sort(function(a,b){return a.ts-b.ts;});WDOCS=arr.map(function(d){if(!d.url)try{d.url=URL.createObjectURL(d.blob);}catch(e){}return d;});}
-function docRow(d){return '<div class="wdoc"><div>'+'<span class="pill">'+(d.type==="application/pdf"?"PDF":"FOTO")+'</span>'+'</div><div class="bd"><b>'+esc(d.name)+'</b><div class="muted small">'+esc(d.poi&&POI[d.poi]?POI[d.poi].n:"Senza tappa")+'</div></div><button onclick="openDoc(\''+d.id+'\')">Apri</button>'+(navigator.share?'<button onclick="shareDoc(\''+d.id+'\')">Invia</button>':'')+'<button onclick="delDoc(\''+d.id+'\')">×</button></div>';}
+/* Documenti del gruppo: la scheda di ogni documento viaggia con i dati condivisi (chiave doc.<id>), il file viene cifrato sul telefono con la chiave del viaggio e depositato nella madre. */
+async function loadDocs(){var arr=await dbAll("d");var old=LD;LD={};arr.forEach(function(d){if(old[d.id]&&old[d.id].url)d.url=old[d.id].url;else try{d.url=URL.createObjectURL(d.blob);}catch(e){}LD[d.id]=d;});wd();}
+function wd(){var seen={};WDOCS=keys("doc.").map(function(k){var m=KV[k].v,id=k.slice(4),l=LD[id]||{};seen[id]=1;return {id:id,poi:m.poi||"",name:m.name,type:m.type,ts:m.ts,who:m.who,blob:l.blob,url:l.url,up:l.up};});
+  Object.keys(LD).forEach(function(id){if(!seen[id]&&!KV["doc."+id])WDOCS.push(LD[id]);});WDOCS.sort(function(a,b){return a.ts-b.ts;});return WDOCS;}
+function docMeta(d,poi){return {name:d.name,type:d.type,poi:poi==null?(d.poi||""):poi,who:d.who||me().id,ts:d.ts};}
+async function tkey(){if(!TKEY)TKEY=await crypto.subtle.importKey("raw",unhex(AUTH.k),"AES-GCM",false,["encrypt","decrypt"]);return TKEY;}
+async function docSync(){
+  var moved=0, base=T.sync.api+"/api/sync/"+T.slug+"/doc/", hd={"x-trip-token":AUTH.tok}, dirty=false;
+  for(var id in LD){var k=KV["doc."+id];if(k&&k.v==null){await dbDel(id,"d");dirty=true;}else if(!k){put("doc."+id,docMeta(LD[id]));dirty=true;}}
+  if(dirty)await loadDocs();
+  var ks=keys("doc.");
+  for(var i=0;i<ks.length&&moved<4;i++){var did=ks[i].slice(4),m=KV[ks[i]].v,l=LD[did];
+    try{
+      if(l&&!l.up){if(l.blob.size>10*1048576)continue;var iv=crypto.getRandomValues(new Uint8Array(12)),ct=await crypto.subtle.encrypt({name:"AES-GCM",iv:iv},await tkey(),await l.blob.arrayBuffer());
+        var r=await fetch(base+did,{method:"PUT",headers:Object.assign({"content-type":"application/octet-stream"},hd),body:new Blob([iv,ct])});if(r.ok){l.up=1;await dbPut({id:did,poi:l.poi,name:l.name,type:l.type,blob:l.blob,ts:l.ts,who:l.who,up:1},"d");moved++;}}
+      else if(!l){var r2=await fetch(base+did,{headers:hd});if(r2.ok){var buf=await r2.arrayBuffer(),pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:new Uint8Array(buf.slice(0,12))},await tkey(),buf.slice(12));
+        await dbPut({id:did,poi:m.poi||"",name:m.name,type:m.type,blob:new Blob([pt],{type:m.type}),ts:m.ts,who:m.who,up:1},"d");moved++;}}
+    }catch(e){break;}}
+  if(moved)await loadDocs();
+  if(moved>=4)setTimeout(sync,1500);
+  return moved+(dirty?1:0);
+}
+function docRow(d){var w=T.people.filter(function(p){return p.id===d.who;})[0], st=!d.blob?"in arrivo dal gruppo":(syncOn()&&!d.up?(d.blob.size>10*1048576?"oltre 10 MB: resta su questo telefono":"in attesa di invio al gruppo"):"");
+  return '<div class="wdoc"><div>'+'<span class="pill">'+(d.type==="application/pdf"?"PDF":"FOTO")+'</span>'+'</div><div class="bd"><b>'+esc(d.name)+'</b><div class="muted small">'+esc([d.poi&&POI[d.poi]?POI[d.poi].n:"Senza tappa",w?"da "+w.name:"",st].filter(Boolean).join(" · "))+'</div></div>'+(d.blob?'<button onclick="openDoc(\''+d.id+'\')">Apri</button>'+(navigator.share?'<button onclick="shareDoc(\''+d.id+'\')">Invia</button>':''):'')+'<button onclick="delDoc(\''+d.id+'\')">×</button></div>';}
 function pickDocFor(poi){var i=$("docIn");i.dataset.poi=poi||"";i.click();}
 async function addDocs(list,poi){var n=0,fresh=[];for(var i=0;i<list.length;i++){var f=list[i],pdf=f.type==="application/pdf"||/\.pdf$/i.test(f.name||""),img=f.type&&f.type.indexOf("image")===0;if((!pdf&&!img)||f.size>25*1048576)continue;
-    try{var blob=img?await shrink(f,2000):f,rec={id:uid("d"),poi:poi||"",name:(f.name||"documento").replace(/\.[^.]+$/,""),type:pdf?"application/pdf":"image/jpeg",blob:blob,ts:Date.now()};await dbPut(rec,"d");fresh.push(rec);n++;}catch(e){}}
-  await loadDocs();closeSheet();renderAltro();toast(n+(n===1?" documento salvato":" documenti salvati"));
+    try{var blob=img?await shrink(f,2000):f,rec={id:uid("d"),poi:poi||"",name:(f.name||"documento").replace(/\.[^.]+$/,""),type:pdf?"application/pdf":"image/jpeg",blob:blob,ts:Date.now(),who:me().id,up:0};await dbPut(rec,"d");put("doc."+rec.id,docMeta(rec));fresh.push(rec);n++;}catch(e){}}
+  await loadDocs();closeSheet();renderCurrent();toast(n+(n===1?" documento salvato":" documenti salvati")+(syncOn()?": lo ricevono tutti i partecipanti":""));
   if(!poi&&syncOn())for(var k=0;k<fresh.length;k++)await readBooking(fresh[k]);}
 /* Una prenotazione aggiunta al wallet viene letta da Claude e modifica il programma di tutto il gruppo. */
 function blob64(b){return new Promise(function(res,rej){var r=new FileReader();r.onload=function(){res(String(r.result));};r.onerror=rej;r.readAsDataURL(b);});}
 async function readBooking(d){
-  if(d.blob.size>9.5e6){toast("Documento troppo grande per essere letto: resta nel wallet");return;}
+  if(d.blob.size>9.5e6){toast("Documento troppo grande per essere letto: resta tra i documenti");return;}
   toast("Leggo la prenotazione: fino a un minuto…");
   try{
     var data=(await blob64(d.blob)).replace(/^data:[^;]*;/,"data:"+d.type+";");
@@ -588,11 +643,11 @@ function applyBooking(j,d){
     put("plan",P);ids.push(id);
   });
   if(j.lodging){put("lodg."+wid,j.lodging);lines.push("Alloggio: "+j.lodging.n+", dal "+j.lodging.from.slice(8)+"/"+j.lodging.from.slice(5,7)+" al "+j.lodging.to.slice(8)+"/"+j.lodging.to.slice(5,7)+". I tragitti di quei giorni partono da lì.");}
-  if(j.booking){put("bk."+wid,j.booking);lines.push("Prenotazione di viaggio aggiunta in Arrivo.");}
+  if(j.booking){put("bk."+wid,j.booking);lines.push("Prenotazione di viaggio aggiunta in Prenotazioni.");}
   var gd=(j.gapsDone||[]).filter(function(i){return (T.gaps||[])[i]&&!g("gap."+i);});
   gd.forEach(function(i){put("gap."+i,1);lines.push("Segnata come prenotata: "+T.gaps[i].t);});
   put("wlog."+wid,{name:d.name,summary:j.summary,ids:ids,removed:removed,gaps:gd,lines:lines,warn:j.warnings||[],by:me().id,ts:Date.now()});
-  if(ids.length){d.poi=ids[0];dbPut({id:d.id,poi:d.poi,name:d.name,type:d.type,blob:d.blob,ts:d.ts},"d").then(loadDocs);}
+  if(ids.length){d.poi=ids[0];put("doc."+d.id,docMeta(d,ids[0]));}
   renderCurrent();
   openSheet('<div class="grab"></div><h3>Prenotazione letta</h3><div style="font-size:14.5px;margin:8px 0 10px">'+esc(j.summary)+'</div><h4>Modifiche al programma</h4>'+lines.map(function(l){return '<div class="kv"><span>'+esc(l)+'</span></div>';}).join("")+
     (j.warnings||[]).map(function(w){return '<div class="tip"><b>Da controllare</b>'+esc(w)+'</div>';}).join("")+
@@ -602,27 +657,17 @@ function undoWallet(wid){var L=g("wlog."+wid,null);if(!L)return;var P=plan(),K=p
   (L.ids||[]).forEach(function(id){DAYS.forEach(function(D){var i=P[D.id].indexOf(id);if(i>=0)P[D.id].splice(i,1);});var k=K.indexOf(id);if(k>=0)K.splice(k,1);put("poi."+id,null);});
   (L.removed||[]).forEach(function(x){if(POI[x[1]]&&P[x[0]]&&P[x[0]].indexOf(x[1])<0)P[x[0]].splice(Math.min(x[2],P[x[0]].length),0,x[1]);});
   put("plan",P);put("parked",K);put("lodg."+wid,null);put("bk."+wid,null);(L.gaps||[]).forEach(function(i){put("gap."+i,0);});put("wlog."+wid,null);
-  mergePoi();closeSheet();renderCurrent();toast("Modifiche annullate: il documento resta nel wallet");}
-function openDoc(id){var d=WDOCS.filter(function(x){return x.id===id;})[0];if(d)window.open(d.url,"_blank");}
-async function shareDoc(id){var d=WDOCS.filter(function(x){return x.id===id;})[0];if(!d||!navigator.share)return;try{var f=new File([d.blob],d.name+(d.type==="application/pdf"?".pdf":".jpg"),{type:d.type});if(navigator.canShare&&!navigator.canShare({files:[f]})){toast("Questo telefono non condivide file da qui");return;}await navigator.share({files:[f],title:d.name});}catch(e){}}
-async function delDoc(id){if(!confirm("Elimino il documento dal wallet?"))return;await dbDel(id,"d");await loadDocs();closeSheet();renderAltro();}
+  mergePoi();closeSheet();renderCurrent();toast("Modifiche annullate: il documento resta tra i documenti");}
+function openDoc(id){var d=WDOCS.filter(function(x){return x.id===id;})[0];if(d&&d.url)window.open(d.url,"_blank");}
+async function shareDoc(id){var d=WDOCS.filter(function(x){return x.id===id;})[0];if(!d||!d.blob||!navigator.share)return;try{var f=new File([d.blob],d.name+(d.type==="application/pdf"?".pdf":".jpg"),{type:d.type});if(navigator.canShare&&!navigator.canShare({files:[f]})){toast("Questo telefono non condivide file da qui");return;}await navigator.share({files:[f],title:d.name});}catch(e){}}
+async function delDoc(id){if(!confirm("Elimino il documento"+(syncOn()?" per tutto il gruppo":"")+"?"))return;put("doc."+id,null);await dbDel(id,"d");await loadDocs();closeSheet();renderCurrent();}
 
-/* ============ ALTRO: prenotazioni, bagagli, wallet, avvisi, sync, app ============ */
+/* ============ ALTRO: bagagli, avvisi, sync, app ============ */
 function renderAltro(){
-  var h='<div class="tt" style="margin-top:4px">Da prenotare</div><div class="card">', pri=0;
-  (T.todo||[]).slice().sort(function(a,b){return a.pri-b.pri;}).forEach(function(t){
-    if(t.pri!==pri){pri=t.pri;h+='<h4 style="margin-top:10px">'+(pri===1?"Subito":pri===2?"Nelle prossime settimane":"Prima di partire")+'</h4>';}
-    var dn=g("todo."+t.id);h+='<div class="ck'+(dn?" done":"")+'" onclick="put(\'todo.'+t.id+'\','+(dn?0:1)+');renderAltro()"><div class="box">'+(dn?"✓":"")+'</div><div class="bd"><b>'+esc(t.t)+'</b><div class="muted small">'+esc(t.d||"")+'</div>'+(t.u?'<a class="small" href="'+safeUrl(t.u)+'" target="_blank" rel="noopener" onclick="event.stopPropagation()">'+esc(t.uTxt||"apri il link")+'</a>':"")+'</div></div>';});
-  if(!(T.todo||[]).length)h+='<div class="muted small">Niente da prenotare.</div>';
-  h+='</div><div class="tt">Bagagli e documenti di '+esc(me().name)+'</div><div class="card">';
+  var h='<div class="tt" style="margin-top:4px">Bagagli e documenti di '+esc(me().name)+'</div><div class="card">';
   (T.pack||[]).forEach(function(c,ci){var done=c.items.filter(function(x,ii){return g("pack."+ci+"_"+ii+"."+me().id);}).length;
     h+='<h4 style="margin-top:12px">'+esc(c.cat)+' · '+done+'/'+c.items.length+'</h4>';
     c.items.forEach(function(x,ii){var k="pack."+ci+"_"+ii+"."+me().id,dn=g(k);h+='<div class="ck'+(dn?" done":"")+'" style="padding:6px 0" onclick="put(\''+k+'\','+(dn?0:1)+');renderAltro()"><div class="box">'+(dn?"✓":"")+'</div><div class="bd"><b style="font-weight:600">'+esc(x)+'</b></div></div>';});});
-  h+='</div><div class="tt">Wallet: biglietti e documenti</div><div class="card"><p class="muted small" style="margin:0 0 8px">PDF o foto di biglietti e prenotazioni, salvati su questo telefono e disponibili offline. Si agganciano a una tappa dalla sua scheda.</p>';
-  WDOCS.forEach(function(d){h+=docRow(d);});
-  h+='<button class="btn full" onclick="pickDocFor(\'\')">Aggiungi biglietto o prenotazione</button><p class="muted small" style="margin:8px 0 0">'+(syncOn()?'Ogni prenotazione aggiunta qui viene letta: la tappa entra nel programma del gruppo al giorno e all\'ora giusti, e se copre una voce mancante la chiude.':'La lettura automatica richiede il collegamento con la webapp madre.')+'</p>';
-  var WL=keys("wlog.").map(function(k){return Object.assign({id:k.slice(5)},KV[k].v);}).sort(function(a,b){return b.ts-a.ts;});
-  if(WL.length){h+='<h4 style="margin-top:14px">Lette e messe in programma</h4>';WL.forEach(function(x){h+='<div class="kv" style="display:block"><b style="display:block;width:auto;color:var(--ink);font:700 14px/1.3 var(--body);text-transform:none;letter-spacing:0">'+esc(x.name)+'</b><span class="muted small" style="display:block;margin:2px 0 4px">'+esc(x.summary||"")+'</span><span class="small" style="display:block">'+(x.lines||[]).map(esc).join("<br>")+'</span><button class="btn ghost" style="padding:6px 9px;margin-top:6px" onclick="if(confirm(\'Annullo le modifiche al programma portate da questa prenotazione?\'))undoWallet(\''+x.id+'\')">Annulla le modifiche</button></div>';});}
   h+='</div>';
   var nOk=S.notif&&("Notification" in window)&&Notification.permission==="granted";
   h+='<div class="tt">Avvisi e calendario</div><div class="card">'+(nOk?'<div class="pill g" style="margin-bottom:8px">Avvisi attivi su questo telefono</div><button class="btn ghost full" onclick="S.notif=0;save();renderAltro()">Disattiva gli avvisi</button>':'<p class="small" style="margin:0 0 8px">Nei giorni del viaggio, 30 minuti prima di ogni tappa. Funziona con l\'app aperta o in secondo piano da poco; su iPhone solo con l\'app installata.</p><button class="btn full" onclick="enableNotif()">Attiva gli avvisi</button>')+
@@ -674,7 +719,7 @@ function doSearch(){
   Object.keys(POI).forEach(function(id){var p=vp(id);if(norm([p.n,p.sub,p.desc,p.tip,p.stop].join(" ")).indexOf(q)<0)return;
     var di=-1;DAYS.forEach(function(D,i){if((P[D.id]||[]).indexOf(id)>=0)di=i;});
     hits.push('<button class="tk pk" style="grid-template-columns:1fr;padding:10px 12px" onclick="closeSearch();'+(di>=0?'vTab='+di+';go(\'s-viaggio\');':'')+'detail(\''+id+'\')"><div><b>'+esc(p.n)+'</b><div class="muted small">'+(di>=0?esc(dlabel(DAYS[di])):"da parte")+(p.sub?' · '+esc(p.sub):'')+'</div></div></button>');});
-  (T.todo||[]).forEach(function(t){if(norm(t.t+" "+t.d).indexOf(q)>=0)hits.push('<button class="tk pk" style="grid-template-columns:1fr;padding:10px 12px" onclick="closeSearch();go(\'s-altro\')"><div><b>'+esc(t.t)+'</b><div class="muted small">'+esc(t.d||"")+'</div></div></button>');});
+  (T.todo||[]).forEach(function(t){if(norm(t.t+" "+t.d).indexOf(q)>=0)hits.push('<button class="tk pk" style="grid-template-columns:1fr;padding:10px 12px" onclick="closeSearch();go(\'s-arrivo\')"><div><b>'+esc(t.t)+'</b><div class="muted small">'+esc(t.d||"")+'</div></div></button>');});
   ((T.info||{}).cards||[]).forEach(function(c){if(norm(c.t+" "+(c.h||[]).map(function(r){return r.join(" ");}).join(" ")+" "+(c.note||"")).indexOf(q)>=0)hits.push('<button class="tk pk" style="grid-template-columns:1fr;padding:10px 12px" onclick="closeSearch();go(\'s-meta\')"><div><b>'+esc(c.t)+'</b><div class="muted small">scheda pratica, in Meta</div></div></button>');});
   (T.ideas||[]).forEach(function(c){if(norm(c.t+" "+c.d+" "+(c.sights||[]).map(function(x){return x.n;}).join(" ")).indexOf(q)>=0)hits.push('<button class="tk pk" style="grid-template-columns:1fr;padding:10px 12px" onclick="closeSearch();go(\'s-meta\')"><div><b>'+esc(c.t)+'</b><div class="muted small">città vicina, in Meta</div></div></button>');});
   box.innerHTML=hits.length?hits.slice(0,40).join(""):'<div class="muted small" style="text-align:center;padding:30px">Nessun risultato.</div>';
@@ -701,7 +746,7 @@ async function sync(manual){
     ks.forEach(function(k){if(KV[k]&&sent[k]&&KV[k].ts<=sent[k].ts)delete S.dirty[k];});
     if(changed)mergePoi();
     S.rev=j.rev;S.last=Date.now();syncState="ok";save();
-    var moved=await photoSync();
+    var moved=await photoSync();try{moved+=await docSync();}catch(e){}
     if(changed||moved||manual){var a=document.activeElement;if(!a||!/INPUT|TEXTAREA/.test(a.tagName))renderCurrent();}
     if(manual)toast("Sincronizzato");
   }catch(e){syncState=navigator.onLine===false?"off":"";}
@@ -717,7 +762,7 @@ async function photoSync(){
 }
 
 /* ============ NAV, INTESTAZIONE, AVVIO ============ */
-var TABS=[["s-gruppo","GRUPPO"],["s-meta","META"],["s-arrivo","ARRIVO"],["s-viaggio","VIAGGIO"],["s-conti","CONTI"],["s-foto","FOTO"],["s-altro","ALTRO"]];
+var TABS=[["s-gruppo","GRUPPO"],["s-meta","META"],["s-arrivo","PRENOTAZIONI"],["s-viaggio","VIAGGIO"],["s-conti","CONTI"],["s-foto","FOTO"],["s-altro","ALTRO"]];
 var curTab="s-gruppo";
 function renderTab(id){({"s-gruppo":renderGruppo,"s-meta":renderMeta,"s-arrivo":renderArrivo,"s-viaggio":renderViaggio,"s-conti":renderConti,"s-foto":renderFoto,"s-altro":renderAltro})[id]();}
 function renderCurrent(){renderTab(curTab);countdown();}

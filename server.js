@@ -147,6 +147,15 @@ app.get('/api/sync/:slug/photo/:id', trip, async (req, res) => {
   if (!sync.okId(req.params.id)) return res.status(400).end();
   try { const b = await sync.getPhoto(req.params.slug, req.params.id); if (!b) return res.status(404).end(); res.set({ 'content-type': 'image/jpeg', 'cache-control': 'private, max-age=31536000' }).send(b); } catch (e) { res.status(502).end(); }
 });
+// Documenti del gruppo: arrivano già cifrati dal telefono con la chiave del viaggio, la madre li deposita senza poterli leggere.
+app.put('/api/sync/:slug/doc/:id', express.raw({ type: 'application/octet-stream', limit: '11mb' }), trip, async (req, res) => {
+  if (!sync.okId(req.params.id) || !Buffer.isBuffer(req.body) || req.body.length < 29) return res.status(400).json({ error: 'Documento non valido' });
+  try { await sync.putDoc(req.params.slug, req.params.id, req.body); res.json({ ok: true }); } catch (e) { res.status(502).json({ error: e.message }); }
+});
+app.get('/api/sync/:slug/doc/:id', trip, async (req, res) => {
+  if (!sync.okId(req.params.id)) return res.status(400).end();
+  try { const b = await sync.getDoc(req.params.slug, req.params.id); if (!b) return res.status(404).end(); res.set({ 'content-type': 'application/octet-stream', 'cache-control': 'private, max-age=31536000' }).send(b); } catch (e) { res.status(502).end(); }
+});
 const bookCount = new Map();
 app.post('/api/book/:slug', express.json({ limit: '1mb' }), trip, async (req, res) => {
   const k = req.params.slug + ':' + new Date().toISOString().slice(0, 10), n = bookCount.get(k) || 0;
